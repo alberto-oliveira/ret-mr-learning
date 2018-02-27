@@ -179,7 +179,7 @@ class WeibullMR_M(BaseEstimator):
         tail_dist = tail_u[sidx:eidx]
 
         tws = perf_counter()
-        shp, scl = WeibullMR_M.weibull_estim_matlab(tail_dist)
+        scl, shp = WeibullMR_M.weibull_estim_matlab(tail_dist)
         twe = perf_counter()
 
         tqs = perf_counter()
