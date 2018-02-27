@@ -19,9 +19,9 @@ import pickle
 ExtDist = importr('ExtDist')
 
 def unwrap_self(arg, **kwarg):
-    return WeibullMR.weibull_fixed(*arg, **kwarg)
+    return WeibullMR_R.weibull_fixed(*arg, **kwarg)
 
-class WeibullMR(BaseEstimator):
+class WeibullMR_R(BaseEstimator):
 
     __opt_metrics_map = dict(ACC=accuracy_score, F1=f1_score, MCC=matthews_corrcoef)
 
@@ -39,7 +39,7 @@ class WeibullMR(BaseEstimator):
 
         self.__min_tail_sz = 5
 
-        self.__eval_metric = WeibullMR.__opt_metrics_map.get(self.opt_metric, None)
+        self.__eval_metric = WeibullMR_R.__opt_metrics_map.get(self.opt_metric, None)
 
         if self.method == 'fixed':
             self.__wmethod = self.weibull_fixed
@@ -181,11 +181,11 @@ class WeibullMR(BaseEstimator):
         tail_dist = tail_u[sidx:eidx]
 
         tws = perf_counter()
-        shp, scl = WeibullMR.weibull_estim_r(tail_dist)
+        shp, scl = WeibullMR_R.weibull_estim_r(tail_dist)
         twe = perf_counter()
 
         tqs = perf_counter()
-        t = WeibullMR.weibull_quant_r(shp, scl, self.delta)
+        t = WeibullMR_R.weibull_quant_r(shp, scl, self.delta)
         tqe = perf_counter()
 
         #if self.v:

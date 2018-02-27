@@ -258,7 +258,8 @@ class ExperimentManager:
 
     def run_weibull_mr(self, expconfig, sampling=1.0):
 
-        from common.weibull import WeibullMR
+        from common.weibull_r import WeibullMR_R
+        from common.weibull_m import WeibullMR_M
 
         expcfg = cfgloader(expconfig)
 
@@ -297,7 +298,7 @@ class ExperimentManager:
 
                     nf = len(foldlist)
 
-                    new_wbl = WeibullMR(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
+                    new_wbl = WeibullMR_R(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
                     for f in range(nf):
 
                         wblpath = "{0:s}weibull-fixed_f{1:03d}.wbl".format(outdir, f)
