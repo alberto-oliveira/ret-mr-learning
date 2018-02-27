@@ -1,0 +1,10 @@
+*.rk
+results/
+output/
+input-ranks/
+input-labels/
+input-fv/
+condor/
+source/deprecated/
+*/__pycache__/
+*/*/__pycache__/
