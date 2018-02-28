@@ -106,7 +106,7 @@ class ExperimentManager:
 
                     np.save(outfile, bslarray)
 
-
+    # Deprecated
     def run_irp_labeling(self, k, fn):
 
         for dataset in self.__expmap:
@@ -140,7 +140,7 @@ class ExperimentManager:
                     lblarray = np.vstack(lbllist)
                     np.save(outfile, lblarray)
 
-
+    # Deprecated
     def run_rpp_labeling(self, k, fn):
 
         for dataset in self.__expmap:
@@ -183,12 +183,12 @@ class ExperimentManager:
 
                 print("Converting labels from ", dataset, " -- descriptor", descnum)
 
-                indir = self.__pathcfg['label'][dkey] + "/rel-prediction/"
+                indir = self.__pathcfg['label'][dkey]
 
                 if(os.path.isdir(indir)):
-                    inflist = glob.glob(indir + "*.npy")
+                    inflist = glob.glob(indir + "*irp*.npy")
 
-                    outdir = self.__pathcfg['label'][dkey] + "/perf-prediction/"
+                    outdir = self.__pathcfg['label'][dkey]
                     safe_create_dir(outdir)
 
                     for infile in inflist:
@@ -203,8 +203,8 @@ class ExperimentManager:
 
                         outarr = np.hstack(aux)
 
-                        parts = (os.path.basename(infile)).rsplit("_", 1)
-                        outfile = outdir + parts[0] + "_rpp.npy"
+                        parts = (os.path.basename(infile)).rsplit(".", 2)
+                        outfile = outdir + parts[0] + ".rpp_lbls.npy"
 
                         print("    |_", os.path.basename(infile), "->", os.path.basename(outfile))
 
@@ -256,9 +256,9 @@ class ExperimentManager:
                 print("---")
 
 
-    def run_weibull_mr(self, expconfig, sampling=1.0):
+    def run_weibull_mr(self, expconfig, sampling=1.0, backend="matlab"):
 
-        from common.weibull_r import WeibullMR_R
+        #from common.weibull_r import WeibullMR_R
         from common.weibull_m import WeibullMR_M
 
         expcfg = cfgloader(expconfig)
@@ -298,7 +298,14 @@ class ExperimentManager:
 
                     nf = len(foldlist)
 
-                    new_wbl = WeibullMR_R(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
+                    if backend == "r":
+                        #new_wbl = WeibullMR_R(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
+                        raise ValueError("R backend is non-functional!")
+                    elif backend == "matlab":
+                        new_wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
+                    else:
+                        raise ValueError("Invalid backend <{0:s}> for Weibull MR".format(backend))
+
                     for f in range(nf):
 
                         wblpath = "{0:s}weibull-fixed_f{1:03d}.wbl".format(outdir, f)

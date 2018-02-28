@@ -183,7 +183,7 @@ class WeibullMR_M(BaseEstimator):
         twe = perf_counter()
 
         tqs = perf_counter()
-        t = WeibullMR_M.weibull_quant_matlab(shp, scl, self.delta)
+        t = WeibullMR_M.weibull_quant_matlab(scl, shp, self.delta)
         tqe = perf_counter()
 
         #if self.v:
@@ -274,12 +274,12 @@ class WeibullMR_M(BaseEstimator):
         return
 
     @staticmethod
-    def weibull_quant_matlab(shp, scl, p):
+    def weibull_quant_matlab(scl, shp, p):
 
         t = WeibullMR_M.__matlab_engine.wblinv(p, scl, shp)
         sys.stderr.flush()
 
-        return t[0]
+        return t
 
     @staticmethod
     def weibull_estim_matlab(data):
