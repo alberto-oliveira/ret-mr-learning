@@ -87,17 +87,34 @@ class ExperimentManager:
                 print(". Baseline output name: ", bslname)
 
                 rkdir = self.__pathcfg['rank'][dkey]
-                foldlist = [rkdir + d + "/" for d in os.listdir(rkdir) if os.path.isdir(rkdir + d + "/")]
-                foldlist.sort()
+                fold_idx = np.load(glob.glob(rkdir + "*folds.npy")[0])
 
                 outdir = self.__pathcfg['output'][dkey] + "{0:s}/rel-prediction/".format(bslname)
                 safe_create_dir(outdir)
 
-                for f, folddir in enumerate(foldlist):
-                    outfile = "{0:s}{1:s}_f{2:03d}_top{3:d}_bsl_irp.npy".format(outdir, dkey, f, k)
+                n, rounds = fold_idx.shape
+                print("   -> Total files: ", n)
+                print("   -> # of rounds: ", rounds)
 
-                    fs = len(glob.glob(folddir + "*.rk"))
+                for r in range(rounds):
 
+                    # Test fold is 0 for round r
+                    fs = np.sum(fold_idx[:, r] == 0)  # Number of examples indexed for fold 0
+                    outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_bsl_irp.npy".format(outdir, dkey, r, k)
+
+                    params = (fs, k, self.__dbparams[dkey].getfloat('p10'))
+                    if bsl == 'ranp':
+                        bslarray = baseline_map[bsl](*params)
+                    else:
+                        bslarray = baseline_map[bsl](*params[0:2])
+
+                    np.save(outfile, bslarray)
+
+                    # Test fold is 1 for round r
+                    fs = np.sum(fold_idx[:, r] == 1)  # Number of examples indexed for fold 1
+                    outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_bsl_irp.npy".format(outdir, dkey, r, k)
+
+                    # Shape from test_idx is the number of examples in that fold
                     params = (fs, k, self.__dbparams[dkey].getfloat('p10'))
                     if bsl == 'ranp':
                         bslarray = baseline_map[bsl](*params)
@@ -276,74 +293,106 @@ class ExperimentManager:
                     print(". Running <Weibull MR - IRP> for ", dataset, " -- descriptor", descnum)
                     print(". Experiment name: ", expname)
 
-                    rkdir = self.__pathcfg['rank'][dkey]
-                    foldlist = [rkdir + d + "/" for d in os.listdir(rkdir) if os.path.isdir(rkdir + d + "/")]
-                    foldlist.sort()
+                    fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
+                    n, rounds = fold_idx.shape
 
-                    lbllist = glob.glob(self.__pathcfg['label'][dkey] + 'rel-prediction/*.npy')
-                    lbllist.sort()
+                    # Loads and preprocesses the ranks. The result is an NxM matrix, where N is the
+                    # number of ranks and M is an arbitrary maximum size for the processed ranks.
+                    # M is used to homogenize the size of the ranks
+                    ranks = preprocess_ranks(self.__pathcfg['rank'][dkey], colname='score', maxsz=8000)
+                    labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + '*irp*')[0])
 
-                    assert len(foldlist) == len(lbllist)
+                    # Consistency checkings
+                    assert n == ranks.shape[0], "Inconsistent number of indexes <{0:d}> and rank files <{1:d}>."\
+                                                .format(n, len(ranks.shape[0]))
 
-                    outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(expname)
-                    safe_create_dir(outdir + 'rel-prediction/')
+                    assert n == labels.shape[0], "Inconsistent number of indexes <{0:d}> and labels <{1:d}>."\
+                                                 .format(n, labels.shape[0])
 
-                    folds = []
-                    labels = []
+                    assert labels.shape[1] == k, "Inconsistent number of labels <{0:d}> and k <{1:d}>."\
+                                                 .format(labels.shape[1], k)
 
-                    for folddir, lblpath in zip(foldlist, lbllist):
+                    outdir = self.__pathcfg['output'][dkey] + "{0:s}/rel-prediction/".format(expname)
+                    safe_create_dir(outdir)
 
-                        folds.append(preprocess_ranks(folddir, colname='score', maxsz=8000))
-                        labels.append(np.load(lblpath))
+                    for r in range(rounds):
+                        print("  -> Starting round #:", r)
 
-                    nf = len(foldlist)
+                        if backend == "r":
+                            # new_wbl = WeibullMR_R(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
+                            raise ValueError("R backend is non-functional!")
+                        elif backend == "matlab":
+                            new_wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
+                        else:
+                            raise ValueError("Invalid backend <{0:s}> for Weibull MR".format(backend))
 
-                    if backend == "r":
-                        #new_wbl = WeibullMR_R(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
-                        raise ValueError("R backend is non-functional!")
-                    elif backend == "matlab":
-                        new_wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
-                    else:
-                        raise ValueError("Invalid backend <{0:s}> for Weibull MR".format(backend))
+                        # Getting round r indexes for fold 0 and fold 1
+                        idx_0 = np.argwhere(fold_idx[:, r] == 0).reshape(-1)
+                        idx_1 = np.argwhere(fold_idx[:, r] == 1).reshape(-1)
 
-                    for f in range(nf):
+                        # Train is fold 1 and Test is fold 0
+                        TEST_X = ranks[idx_0, :]
+                        wblpath = "{0:s}weibull-fixed_r{1:03d}_000.wbl".format(outdir, r)
 
-                        wblpath = "{0:s}weibull-fixed_f{1:03d}.wbl".format(outdir, f)
+                        # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
                         try:
                             with open(wblpath, 'rb') as inpf:
                                 wbl = pickle.load(inpf)
+
                         except FileNotFoundError:
                             wbl = new_wbl
-                            train_X = np.vstack(folds[0:f] + folds[f+1:])
-                            train_y = np.vstack(labels[0:f] + labels[f + 1:])
+                            TRAIN_X = ranks[idx_1, :]
+                            TRAIN_y = labels[idx_1, :]
 
-                            assert train_X.shape[0] == train_y.shape[0], "Number of training samples and labels do not" \
-                                                                         "match"
+                            # SAMPLING SHOULD GO HERE #
 
-                            if train_X.shape[0] >= 1000:
-                                samplidx = np.arange(0, train_X.shape[0], dtype=np.int32)
-                                nsamp = int(np.floor(sampling*train_X.shape[0]))
+                            wbl.fit(TRAIN_X, TRAIN_y, f_val=(0.1, 0.85, 0.1), z_val=(0.2, 1.1, 0.2))
 
-                                np.random.shuffle(samplidx)
-                                samplidx = samplidx[0:nsamp]
+                        print("       -> With [1] as training (F, Z) =", (wbl.F, wbl.Z))
+                        predicted, _ = wbl.predict(TEST_X)
 
-                                wbl.fit(train_X[samplidx, :], train_y[samplidx, :],
-                                        f_val=(0.1, 0.85, 0.1), z_val=(0.2, 1.1, 0.2))
-
-                            else:
-                                wbl.fit(train_X, train_y, f_val=(0.1, 0.85, 0.1), z_val=(0.2, 1.1, 0.2))
-
-                        outfile = "{0:s}rel-prediction/{1:s}_f{2:03d}_top{3:d}_irp.npy".format(outdir, dkey, f, k)
+                        outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_irp.npy".format(outdir, dkey, r, k)
                         print("    -> ", os.path.basename(outfile), "...", end="", flush=True)
-
-                        test_X = folds[f]
-                        predicted, _ = wbl.predict(test_X)
 
                         np.save(outfile, predicted)
 
+                        # Let's save this predictor
                         with open(wblpath, 'wb') as outf:
                             pickle.dump(wbl, outf)
                         print(" Done!")
+
+                        # Train is fold 0 and Test is fold 1
+                        TEST_X = ranks[idx_1, :]
+                        wblpath = "{0:s}weibull-fixed_r{1:03d}_001.wbl".format(outdir, r)
+
+                        # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
+                        try:
+                            with open(wblpath, 'rb') as inpf:
+                                wbl = pickle.load(inpf)
+
+                        except FileNotFoundError:
+                            wbl = new_wbl
+                            TRAIN_X = ranks[idx_0, :]
+                            TRAIN_y = labels[idx_0, :]
+
+                            # SAMPLING SHOULD GO HERE #
+
+                            wbl.fit(TRAIN_X, TRAIN_y, f_val=(0.1, 0.85, 0.1), z_val=(0.2, 1.1, 0.2))
+
+                        print("       -> With [0] as training (F, Z) =", (wbl.F, wbl.Z))
+                        predicted, _ = wbl.predict(TEST_X)
+
+                        outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                        print("    -> ", os.path.basename(outfile), "...", end="", flush=True)
+
+                        np.save(outfile, predicted)
+
+                        # Let's save this predictor
+                        with open(wblpath, 'wb') as outf:
+                            pickle.dump(wbl, outf)
+                        print(" Done!")
+
+
 
 
     def run_learning_mr(self, expconfig):
@@ -363,37 +412,58 @@ class ExperimentManager:
                 print(". Running <Learning MR - IRP> on", dataset, " -- descriptor", descnum)
                 print(". Experiment name: ", expname)
 
-                featdir = self.__pathcfg['feature'][dkey] + expname + "/"
-                lbldir = self.__pathcfg['label'][dkey] + "/rel-prediction/"
+                fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
+                n, rounds = fold_idx.shape
+
+                features = np.load(glob.glob(self.__pathcfg['feature'][dkey] + "*{0:s}*".format(expname))[0])
+                labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + "*irp*")[0])
 
                 outdir = self.__pathcfg['output'][dkey] + "{0:s}/rel-prediction/".format(expname)
                 safe_create_dir(outdir)
 
-                labels = load_labels(lbldir)
-                fn = len(labels)  # Number of folds
+                for r in range(rounds):
+                    print("  -> Starting round #:", r)
+                    idx_0 = np.argwhere(fold_idx[:, r] == 0).reshape(-1)
+                    idx_1 = np.argwhere(fold_idx[:, r] == 1).reshape(-1)
 
-                # Top-k features
-                for m in range(0, k):
-                    print("  -> Classifying Rank -", m+1)
-                    features = load_features(featdir, "{0:d}".format(m+1))
-                    print("        -> Feat shape:", [f.shape for f in features])
-                    predicted_r = run_classification(features, labels, cname, scale=True, M=m)
-                    if not predicted:
-                        predicted = predicted_r
-                    else:
-                        for i, p in enumerate(predicted_r):
-                            predicted[i] = np.hstack([predicted[i], p])
+                    # Contains the per-rank predictions, considering both folds once as train/test
+                    predicted = [[], []]
 
-                for f in range(fn):
-                    nlbl = labels[f].shape[0]
-                    assert predicted[f].shape == labels[f].shape
-                    outfile = "{0:s}{1:s}_f{2:03d}_top{3:d}_irp.npy".format(outdir, dkey, f, k)
-                    print("  -> Saving:", outfile)
-                    print("      |-> Shape:", predicted[f].shape)
+                    for m in range(0, k):
+                        print("      -> Classifying Rank -", m+1)
 
-                    np.save(outfile, predicted[f])
+                        # Getting features for position m+1. Some tricky 0-indexing stuff
+                        r_features = features["{0:d}".format(m+1)]
+                        r_labels = labels[:, m]
 
-                predicted = []
+                        # run classification already performs proper fold division. It suffices that a list is passed
+                        # whereby each position contains the features according to the fold
+                        r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, False)
+
+                        # Fold 0 is test
+                        predicted[0].append(r_predicted[0])
+
+                        # Fold 1 is test
+                        predicted[1].append(r_predicted[1])
+
+                    # We close the round by stacking the per-rank-position predictions, and saving the output files
+                    predicted[0] = np.hstack(predicted[0])
+                    predicted[1] = np.hstack(predicted[1])
+
+                    # Sanity check: is the total number of predictions the same as the total number of labels?
+                    assert (predicted[0].shape[0] + predicted[1].shape[0]) == labels.shape[0],\
+                           "Inconsistent number of predicted labels <{0:d} + {1:d} = {2:d}> and labels <{3:d}>"\
+                           .format(predicted[0].shape[0], predicted[1].shape[0],
+                                   (predicted[0].shape[0] + predicted[1].shape[0]), labels.shape[0])
+
+                    # Phew, all done. Let's save the predictions. The naming convention is has rXXX_YYY where XXX is the
+                    # number of the round, and YYY is either 000 (when fold 0 was test) or 001 (when fold 1 was test)
+                    outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    np.save(outfile, predicted[0])
+
+                    outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    np.save(outfile, predicted[1])
+
 
         return
 

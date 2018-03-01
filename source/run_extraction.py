@@ -15,7 +15,7 @@ from common.mappings import descriptor_map
 
 def run_extraction(dataset_choices, expconfig, fn, metric='score'):
 
-    pathcfg = cfgloader("path.cfg")
+    pathcfg = cfgloader("path_2.cfg")
     expcfg = cfgloader(expconfig)
     extractor_list = create_extraction_list(expcfg)
 
@@ -32,68 +32,58 @@ def run_extraction(dataset_choices, expconfig, fn, metric='score'):
             rkdir = pathcfg["rank"][dkey]
             fvdir = pathcfg["feature"][dkey]
 
-            for f in range(fn):  # Iterates over folds
-                foldn = "fold_{0:d}".format(f)
-                print("    |_", foldn)
+            safe_create_dir(fvdir)
 
-                indir = rkdir + foldn + "/"
-                outdir = fvdir + expcfg['DEFAULT']['expname'] + "/"
-                safe_create_dir(outdir)
+            rkflist = glob.glob(rkdir + "*.rk")
+            rkflist.sort()
 
-                rkflist = glob.glob(indir + "*.rk")
-                rkflist.sort()
+            outarray_map = dict()
 
-                outarray_map = dict()
+            feat_posit = [[] for _ in range(k)]
+            outfile = "{0:s}{1:s}.{2:s}".format(fvdir, dkey, expcfg['DEFAULT']['expname'])  # NPZ output file
 
-                feat_posit = [[] for x in range(k)]
-                outfile = "{0:s}{1:s}_f{2:03d}_feat".format(outdir, dkey, f)  # NPZ output file
+            feat_rank = []
 
-                feat_rank = []
+            for rkfpath in rkflist:  # Iterates over rank files inside fold
+                print("    |_", getbasename(rkfpath))
 
-                prev_shape_r = ()
-                prev_shape_p = ()
+                aux = dict(positional=[], rank=[])
 
-                for rkfpath in rkflist:  # Iterates over rank files inside fold
-                    print("        |_", getbasename(rkfpath))
+                rank = read_rank(rkfpath)
+                for r in range(0, k):  # Iterates over rank positions
+                    features = extract_rank_features(rank[metric], extractor_list, ci=r)
 
-                    aux = dict(positional=[], rank=[])
+                    # Some features are per-rank, others are positional (that is, for each top-k positions)
+                    # Although I recalculate per-rank feat. for each position, when concatenating for the top-k
+                    # features I need to have them only once
+                    for pos, tup in enumerate(extractor_list):
+                        if tup[1] == 'rank' and not aux['rank']:
+                            aux['rank'].append(features[pos])
+                        elif tup[1] == 'pos':
+                            aux['positional'].append(features[pos])
 
-                    rank = read_rank(rkfpath)
-                    for r in range(0, k):  # Iterates over rank positions
-                        features = extract_rank_features(rank[metric], extractor_list, ci=r)
+                    new_feat_posit = np.hstack(features)
+                    if feat_posit[r]:
+                        assert feat_posit[r][-1].shape == new_feat_posit.shape, \
+                               "Inconsistent shapes between positional features for rank {0:d}. Previous" \
+                               " was {1:s} and latest {2:s}"\
+                               .format(r, str(feat_posit[r][-1].shape), str(new_feat_posit.shape))
 
-                        # Some features are per-rank, others are positional (that is, for each top-k positions)
-                        # Although I recalculate per-rank feat. for each position, when concatenating for the top-k
-                        # features I need to have them only once
-                        for pos, tup in enumerate(extractor_list):
-                            if tup[1] == 'rank' and not aux['rank']:
-                                aux['rank'].append(features[pos])
-                            elif tup[1] == 'pos':
-                                aux['positional'].append(features[pos])
+                    feat_posit[r].append(new_feat_posit)
 
-                        new_feat_posit = np.hstack(features)
-                        if feat_posit[r]:
-                            assert feat_posit[r][-1].shape == new_feat_posit.shape, \
-                                   "Inconsistent shapes between positional features for rank {0:d}. Previous" \
-                                   " was {1:s} and latest {2:s}"\
-                                   .format(r, str(feat_posit[r][-1].shape), str(new_feat_posit.shape))
+                if aux['positional']:
+                    aux['positional'] = np.hstack(aux['positional'])
+                if aux['rank']:
+                    aux['rank'] = np.hstack(aux['rank'])
 
-                        feat_posit[r].append(new_feat_posit)
+                feat_rank.append(np.hstack([aux['positional'], aux['rank']]).reshape(1, -1))
 
-                    if aux['positional']:
-                        aux['positional'] = np.hstack(aux['positional'])
-                    if aux['rank']:
-                        aux['rank'] = np.hstack(aux['rank'])
+            for r in range(k):  # Iterates over rank position
+                outarray_map['{0:d}'.format(r+1)] = np.vstack(feat_posit[r])
 
-                    feat_rank.append(np.hstack([aux['positional'], aux['rank']]).reshape(1, -1))
+            outarray_map['r'] = np.vstack(feat_rank)
 
-
-                for r in range(k):  # Iterates over rank position
-                    outarray_map['{0:d}'.format(r+1)] = np.vstack(feat_posit[r])
-
-                outarray_map['r'] = np.vstack(feat_rank)
-
-                np.savez_compressed(outfile, **outarray_map)
+            np.savez_compressed(outfile, **outarray_map)
 
 
 if __name__ == "__main__":

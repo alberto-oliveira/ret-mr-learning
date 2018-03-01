@@ -41,7 +41,7 @@ class WeibullMR_M(BaseEstimator):
 
         if self.method == 'fixed':
             self.__wmethod = self.weibull_fixed
-        elif self.method== 'mixt':
+        elif self.method == 'mixt':
             #self.__wmethod = self.__weibull_mixt
             self.__wmethod = self.weibull_fixed
         else:
@@ -292,15 +292,6 @@ class WeibullMR_M(BaseEstimator):
         shape = estpar[0][1]
 
         return scale, shape
-
-    def save(self, outfile):
-
-        out = dict()
-        out['k'] = self.k
-        out['optimization'] = self.opt_metric
-        out['']
-
-        np.save(np.array)
 
 
 
