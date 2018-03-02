@@ -4,7 +4,7 @@
 import numpy as np
 import glob
 
-rk_dtype = dict(names=('name', 'score', 'norms', 'dists', 'normd'),
+rk_dtype = dict(names=('name', 'votes', 'normv', 'dists', 'normd'),
                 formats=('U100', np.float32, np.float32, np.float32, np.float32))
 
 rel_dtype = dict(names=('name', 'rel'),

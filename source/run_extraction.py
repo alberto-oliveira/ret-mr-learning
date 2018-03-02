@@ -13,9 +13,10 @@ from common.cfgloader import *
 from common.utilities import safe_create_dir, getbasename
 from common.mappings import descriptor_map
 
-def run_extraction(dataset_choices, expconfig, fn, metric='score'):
+def run_extraction(dataset_choices, expconfig):
 
     pathcfg = cfgloader("path_2.cfg")
+    dbparams = cfgloader("dbparams.cfg")
     expcfg = cfgloader(expconfig)
     extractor_list = create_extraction_list(expcfg)
 
@@ -28,6 +29,7 @@ def run_extraction(dataset_choices, expconfig, fn, metric='score'):
             print(". Experiment: ", expcfg['DEFAULT']['expname'])
 
             dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
+            print("   -> Scoretype:", dbparams[dkey]['scoretype'])
 
             rkdir = pathcfg["rank"][dkey]
             fvdir = pathcfg["feature"][dkey]
@@ -51,7 +53,7 @@ def run_extraction(dataset_choices, expconfig, fn, metric='score'):
 
                 rank = read_rank(rkfpath)
                 for r in range(0, k):  # Iterates over rank positions
-                    features = extract_rank_features(rank[metric], extractor_list, ci=r)
+                    features = extract_rank_features(rank[dbparams[dkey]['scoretype']], extractor_list, ci=r)
 
                     # Some features are per-rank, others are positional (that is, for each top-k positions)
                     # Although I recalculate per-rank feat. for each position, when concatenating for the top-k
@@ -101,14 +103,12 @@ if __name__ == "__main__":
     parser.add_argument("expconfig", help="path to experiment .cfg file",
                         type=str)
 
-    parser.add_argument("--foldnum", "-f", help="Number of folds used. Default is 10.", type=int, default=10)
 
     args = parser.parse_args()
 
     dataset = args.dataset
     descnum = args.descnum
     expconfig = args.expconfig
-    fn = args.foldnum
 
     if dataset == "all":
         dataset_choices = descriptor_map
@@ -121,4 +121,4 @@ if __name__ == "__main__":
             print("Choise are: ", descriptor_map[dataset], "   Exiting\n---")
             sys.exit(2)
 
-    run_extraction(dataset_choices, expconfig, fn)
+    run_extraction(dataset_choices, expconfig)

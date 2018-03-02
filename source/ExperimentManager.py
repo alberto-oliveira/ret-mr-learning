@@ -299,7 +299,8 @@ class ExperimentManager:
                     # Loads and preprocesses the ranks. The result is an NxM matrix, where N is the
                     # number of ranks and M is an arbitrary maximum size for the processed ranks.
                     # M is used to homogenize the size of the ranks
-                    ranks = preprocess_ranks(self.__pathcfg['rank'][dkey], colname='score', maxsz=8000)
+                    ranks = preprocess_ranks(self.__pathcfg['rank'][dkey], self.__dbparams[dkey]['scoretype'],
+                                             maxsz=8000)
                     labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + '*irp*')[0])
 
                     # Consistency checkings
@@ -318,14 +319,6 @@ class ExperimentManager:
                     for r in range(rounds):
                         print("  -> Starting round #:", r)
 
-                        if backend == "r":
-                            # new_wbl = WeibullMR_R(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
-                            raise ValueError("R backend is non-functional!")
-                        elif backend == "matlab":
-                            new_wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
-                        else:
-                            raise ValueError("Invalid backend <{0:s}> for Weibull MR".format(backend))
-
                         # Getting round r indexes for fold 0 and fold 1
                         idx_0 = np.argwhere(fold_idx[:, r] == 0).reshape(-1)
                         idx_1 = np.argwhere(fold_idx[:, r] == 1).reshape(-1)
@@ -340,7 +333,7 @@ class ExperimentManager:
                                 wbl = pickle.load(inpf)
 
                         except FileNotFoundError:
-                            wbl = new_wbl
+                            wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
                             TRAIN_X = ranks[idx_1, :]
                             TRAIN_y = labels[idx_1, :]
 
@@ -371,7 +364,7 @@ class ExperimentManager:
                                 wbl = pickle.load(inpf)
 
                         except FileNotFoundError:
-                            wbl = new_wbl
+                            wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
                             TRAIN_X = ranks[idx_0, :]
                             TRAIN_y = labels[idx_0, :]
 

@@ -11,20 +11,20 @@ from ExperimentManager import ExperimentManager
 
 def run_experiment(dataset, descriptor, expcfgfile):
 
-    e_manager = ExperimentManager(pathcfg="/home/alberto/SpotME/projects/performance-prediction/sources/"
-                                          "ret-mr-learning/source/path.cfg",
-                                  dbparamscfg="/home/alberto/SpotME/projects/performance-prediction/sources/"
-                                              "ret-mr-learning/source/dbparams.cfg")
-    e_manager.set_experiment_map(dataset, descriptor)
+    e_manager = ExperimentManager(pathcfg="/home/alberto/phD/projects/performance_prediction/ret-mr-learning/source/"
+                                          "path_2.cfg",
+                                  dbparamscfg="/home/alberto/phD/projects/performance_prediction/ret-mr-learning/"
+                                              "source/dbparams.cfg")
+    e_manager.set_experiment_map([(dataset, descriptor)])
 
     expcfg = cfgloader(expcfgfile)
 
     if expcfg['DEFAULT']['type'] == 'wbl':
-        e_manager.run_weibull_mr(expcfgfile, sampling=0.05)
-        e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 8)
+        e_manager.run_weibull_mr(expcfgfile)
+        e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
     if expcfg['DEFAULT']['type'] == 'lrn':
         e_manager.run_learning_mr(expcfgfile)
-        e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 8)
+        e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
 
     print("--- Done ---")
     return

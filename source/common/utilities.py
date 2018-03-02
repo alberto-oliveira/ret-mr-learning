@@ -58,12 +58,22 @@ def check_experiment(expdir):
     return check
 
 
-def preprocess_ranks(dir, colname='score', maxsz=1000):
+def get_rank_colname(rank):
+
+    if np.all(rank['score'] == 1):
+        colname = 'normd'
+    else:
+        colname = 'score'
+
+    return colname
+
+def preprocess_ranks(dir, colname='votes', maxsz=1000):
 
     if colname not in rk_dtype['names']:
         raise ValueError('attribute \'colname\' must be one of:', rk_dtype['names'])
 
     rkpathlist = glob.glob(dir + "/*.rk")
+    rkpathlist.sort()
 
     rklist = []
     for fpath in rkpathlist:

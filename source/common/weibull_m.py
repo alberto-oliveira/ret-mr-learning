@@ -13,7 +13,8 @@ from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
 import matlab.engine
 
 from time import perf_counter
-import pickle
+
+import ipdb as pdb
 
 def unwrap_self(arg, **kwarg):
     return WeibullMR_M.weibull_fixed(*arg, **kwarg)
@@ -34,6 +35,8 @@ class WeibullMR_M(BaseEstimator):
 
         self._F = 0.0
         self._Z = 0.0
+
+        self._opt_val = -np.inf
 
         self.__min_tail_sz = 5
 
@@ -138,6 +141,8 @@ class WeibullMR_M(BaseEstimator):
             targetX = X[:, 0:self.k]
             tailX = X[:, self.k:]
 
+        #print(targetX)
+
         t_values = []
         predicted = []
         nsamples = tailX.shape[0]
@@ -159,6 +164,7 @@ class WeibullMR_M(BaseEstimator):
 
     def weibull_fixed(self, tail, f, z):
 
+        #pdb.set_trace()
         tail_u = np.unique(tail)[::-1]
         tail_u = tail_u[tail_u != -1]
         #tail_u = tail[tail != -1]
@@ -177,6 +183,7 @@ class WeibullMR_M(BaseEstimator):
                 sidx = np.clip(sidx-d, 0, tail_sz)
 
         tail_dist = tail_u[sidx:eidx]
+        #print(tail_dist)
 
         tws = perf_counter()
         scl, shp = WeibullMR_M.weibull_estim_matlab(tail_dist)
@@ -197,7 +204,6 @@ class WeibullMR_M(BaseEstimator):
 
         bestf = f_range[0]
         bestz = z_range[0]
-        bestM = 0.0
 
         if self.notop:
             targetX = X[:, 1:self.k + 1]
@@ -229,7 +235,7 @@ class WeibullMR_M(BaseEstimator):
                 results = []
 
                 for i in range(nsamples):
-
+                    #pdb.set_trace()
                     tail = tailX[i, :]
 
                     t, tw, tq = self.weibull_fixed(tail, f, z)
@@ -254,15 +260,15 @@ class WeibullMR_M(BaseEstimator):
                     print("     -> # samples: {2:d} | Elapsed: {0:0.3f}s | Avg. Wbl. Time {1:0.3f}s |"
                           " Avg. Qtl. Time {3:0.3f}s".format(te-ts, time_w/nsamples, nsamples, time_q/nsamples),
                           file=sys.stdout, flush=True)
-                    print("     -> M = {0:0.3f}  |  Best = {1:0.3f}".format(m, bestM), file=sys.stdout, flush=True)
+                    print("     -> M = {0:0.3f}  |  Best = {1:0.3f}".format(m, self._opt_val), file=sys.stdout, flush=True)
 
-                if m >= bestM:
+                if m >= self._opt_val:
                     if self.v:
                         print("     -- Updating F: {0:0.1f} -> {1:0.1f}".format(bestf, f), file=sys.stdout, flush=True)
                         print("     -- Updating Z: {0:0.1f} -> {1:0.1f}".format(bestz, z), file=sys.stdout, flush=True)
                     bestf = f
                     bestz = z
-                    bestM = m
+                    self._opt_val = m
 
                 if self.v:
                     print("  --\n")
@@ -285,6 +291,7 @@ class WeibullMR_M(BaseEstimator):
     def weibull_estim_matlab(data):
 
         data_m = matlab.double(data.reshape(-1).tolist())
+        #print(data_m)
         estpar, _ = WeibullMR_M.__matlab_engine.wblfit(data_m, nargout=2)
         sys.stderr.flush()
 

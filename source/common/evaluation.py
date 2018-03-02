@@ -12,7 +12,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 
-from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
+from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score, confusion_matrix
 
 from common.cfgloader import *
 from common.utilities import safe_create_dir
@@ -29,6 +29,8 @@ class Evaluator:
             self.lblpath = pathcfg['label'][self.key]
             self.outpath = pathcfg['output'][self.key]
             self.respath = pathcfg['result'][self.key]
+            aux = glob.glob(pathcfg['rank'][self.key] + '/*.folds.npy')[0]
+            self.foldidx = np.load(aux)
 
         self.evalname = ""
 
@@ -39,8 +41,6 @@ class Evaluator:
 
         self.__gt_irp_labels = []
         self.__gt_rpp_labels = []
-
-        self.__fn = -1
 
         if evalcfgfile:
             self.load_configurations(evalcfgfile)
@@ -99,40 +99,28 @@ class Evaluator:
 
             self.__data.append(m)
 
-    def reload_dataset_info(self, key, lblpath, outpath, respath):
-
-        self.key = key
-        self.lblpath = lblpath
-        self.outpath = outpath
-        self.respath = respath + "/" + self.evalname
-
-        del self.__gt_irp_labels
-        del self.__gt_rpp_labels
-
-        for mdata in self.__data:
-
-            if 'irp_results' in mdata:
-                del mdata['irp_results']
-
-            if 'rpp_results' in mdata:
-                del mdata['rpp_results']
-
     def load_results_data(self):
+
+        n, rds = self.foldidx.shape
 
         # Loading Groundtruth labels
 
-        irp_flist = glob.glob(self.lblpath + 'rel-prediction/*.npy')
-        rpp_flist = glob.glob(self.lblpath + 'perf-prediction/*.npy')
+        irp_lbl = np.load(glob.glob(self.lblpath + '*irp*')[0])
+        rpp_lbl = np.load(glob.glob(self.lblpath + '*rpp*')[0])
 
-        self.__fn = len(irp_flist)  # Fold number deduced from number of files
+        self.__gt_irp_labels = []
+        self.__gt_rpp_labels = []
 
-        irp_flist.sort()
-        rpp_flist.sort()
+        for r in range(rds):
+            idx_0 = np.argwhere(self.foldidx[:, r] == 0).reshape(-1)
+            idx_1 = np.argwhere(self.foldidx[:, r] == 1).reshape(-1)
 
-        self.__gt_irp_labels = list(map(np.load, irp_flist))
-        self.__gt_rpp_labels = list(map(np.load, rpp_flist))
-        for i in range(len(self.__gt_rpp_labels)):
-            self.__gt_rpp_labels[i] = self.__gt_rpp_labels[i][:, self.__s:self.__e]
+            self.__gt_irp_labels.append(irp_lbl[idx_0, :])
+            self.__gt_irp_labels.append(irp_lbl[idx_1, :])
+
+            self.__gt_rpp_labels.append(rpp_lbl[idx_0, self.__s:self.__e])
+            self.__gt_rpp_labels.append(rpp_lbl[idx_1, self.__s:self.__e])
+
         ##
 
         assert self.__gt_irp_labels, "Empty IRP Groundtruth Labels"
@@ -170,21 +158,24 @@ class Evaluator:
 
             irp_pred_labels = mdata['irp_results']
 
-            for k in range(self.__fn):
+            teval = len(mdata['irp_results'])
 
-                irp_true_labels_fold = self.__gt_irp_labels[k]
-                irp_pred_labels_fold = irp_pred_labels[k]
+            for k in range(teval):
+
+                irp_true_labels_single = self.__gt_irp_labels[k]
+                irp_pred_labels_single = irp_pred_labels[k]
 
                 #print("true shape:", irp_true_labels_fold.shape)
                 #print("pred shape:", irp_pred_labels_fold.shape)
 
                 #np.seterr(all='raise')
-                irp_acc = accuracy_score(irp_true_labels_fold.reshape(-1), irp_pred_labels_fold.reshape(-1))
-                irp_mcc = matthews_corrcoef(irp_true_labels_fold.reshape(-1), irp_pred_labels_fold.reshape(-1))
-                irp_f1 = f1_score(irp_true_labels_fold.reshape(-1), irp_pred_labels_fold.reshape(-1))
+                irp_acc = accuracy_score(irp_true_labels_single.reshape(-1), irp_pred_labels_single.reshape(-1))
+                irp_nacc = Evaluator.norm_acc(irp_true_labels_single.reshape(-1), irp_pred_labels_single.reshape(-1))
+                irp_mcc = matthews_corrcoef(irp_true_labels_single.reshape(-1), irp_pred_labels_single.reshape(-1))
+                irp_f1 = f1_score(irp_true_labels_single.reshape(-1), irp_pred_labels_single.reshape(-1))
                 #np.seterr(all='ignore')
 
-                irp_evaluation.append([irp_acc, irp_f1, irp_mcc])
+                irp_evaluation.append([irp_acc, irp_nacc, irp_f1, irp_mcc])
 
             #for t in irp_evaluation: print(t)
             irp_evaluation = np.vstack(irp_evaluation)
@@ -193,33 +184,35 @@ class Evaluator:
 
             ## Rank Performance Prediction (rpp) Evaluation
             rpp_acc_evaluation = []
+            rpp_nacc_evaluation = []
             rpp_f1_evaluation = []
             rpp_mcc_evaluation = []
 
             rpp_pred_labels = mdata['rpp_results']
 
-            for k in range(self.__fn):
+            for k in range(teval):
 
                 #print(" |_ RPP Evaluation: Fold #{0:d}".format(k))
-                rpp_true_labels_fold = self.__gt_rpp_labels[k]
-                rpp_pred_labels_fold = rpp_pred_labels[k]
+                rpp_true_labels_single = self.__gt_rpp_labels[k]
+                rpp_pred_labels_single = rpp_pred_labels[k]
 
-                assert rpp_pred_labels_fold.shape == rpp_true_labels_fold.shape,\
+                assert rpp_pred_labels_single.shape == rpp_true_labels_single.shape,\
                        "Inconsistent shapes between RPP predicted labels {0:s} and true labels {1:s}, at fold {2:d}"\
-                       .format(str(rpp_pred_labels_fold.shape), str(rpp_true_labels_fold.shape), k)
+                       .format(str(rpp_pred_labels_single.shape), str(rpp_true_labels_single.shape), k)
 
                 acc_m = []
+                nacc_m = []
                 f1_m = []
                 mcc_m = []
 
                 #print(rpp_true_labels_fold.shape)
                 #print(rpp_pred_labels_fold.shape)
-                for c in range(rpp_pred_labels_fold.shape[1]):
+                for c in range(rpp_pred_labels_single.shape[1]):
 
                     #print("    -> M = {0:d}".format(c+2))
 
-                    true_l = rpp_true_labels_fold[:, c].reshape(-1)
-                    pred_l = rpp_pred_labels_fold[:, c].reshape(-1)
+                    true_l = rpp_true_labels_single[:, c].reshape(-1)
+                    pred_l = rpp_pred_labels_single[:, c].reshape(-1)
 
                     #print("--\n", rpp_true_labels_fold.shape)
                     #print(rpp_pred_labels_fold.shape)
@@ -228,18 +221,22 @@ class Evaluator:
                     #print("   {0:<20s}".format("predicted:"), pred_l, end="\n\n", file=sys.stdout, flush=True)
 
                     acc_m.append(accuracy_score(true_l, pred_l))
+                    nacc_m.append(Evaluator.norm_acc(true_l, pred_l))
                     f1_m.append(f1_score(true_l, pred_l))
                     mcc_m.append(matthews_corrcoef(true_l, pred_l))
 
                 rpp_acc_evaluation.append(acc_m)
+                rpp_nacc_evaluation.append(nacc_m)
                 rpp_f1_evaluation.append(f1_m)
                 rpp_mcc_evaluation.append(mcc_m)
 
             rpp_acc_evaluation = np.vstack(rpp_acc_evaluation)
+            rpp_nacc_evaluation = np.vstack(rpp_nacc_evaluation)
             rpp_f1_evaluation = np.vstack(rpp_f1_evaluation)
             rpp_mcc_evaluation = np.vstack(rpp_mcc_evaluation)
 
             mdata['rpp_evaluation'] = dict(acc=np.vstack([rpp_acc_evaluation, np.mean(rpp_acc_evaluation, axis=0)]),
+                                           normacc=np.vstack([rpp_nacc_evaluation, np.mean(rpp_nacc_evaluation, axis=0)]),
                                            f1=np.vstack([rpp_f1_evaluation, np.mean(rpp_f1_evaluation, axis=0)]),
                                            mcc=np.vstack([rpp_mcc_evaluation, np.mean(rpp_mcc_evaluation, axis=0)]))
             np.seterr(divide='warn', invalid='warn')
@@ -270,7 +267,7 @@ class Evaluator:
             rpp_eval_mcc.append((mdata['params']['label'], mdata['rpp_evaluation']['mcc'][-1, :]))
 
         with open(outfilename + "irp.csv", 'w') as outf:
-            outf.write('label, acc, f1, mcc\n')
+            outf.write('label, acc, norm acc, f1, mcc\n')
             for tpl in irp_eval:
                 outf.write(tpl[0])
                 for v in tpl[1]:  outf.write(",{0:0.4f}".format(v))
@@ -297,6 +294,29 @@ class Evaluator:
                 outf.write(tpl[0])
                 for v in tpl[1]:  outf.write(",{0:0.4f}".format(v))
                 outf.write('\n')
+
+    @staticmethod
+    def norm_acc(y_true, y_pred):
+
+        assert y_true.shape == y_pred.shape, "Inconsistent shapes between true labels <{0:s}> and predicted " \
+                                              "labels <{1:s}>.".format(str(y_true.shape), str(y_pred.shape))
+
+        cfmat = confusion_matrix(y_true, y_pred)
+
+        TN = cfmat[0, 0]
+        FN = cfmat[1, 0]
+
+        FP = cfmat[0, 1]
+        TP = cfmat[1, 1]
+
+        TNR = TN/(TN + FP)
+        TPR = TP/(TP + FN)
+
+        nacc = (TNR + TPR)/2
+
+        return nacc
+
+
 
     def draw_irp_results(self, outprefix="", measure='MCC', dbparams=''):
 

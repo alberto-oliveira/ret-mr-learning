@@ -63,7 +63,7 @@ function [t] = weibull_test_unique(rankfpath, f, z, delta)
     
     % Computes the Scale and Shape parameters of weibull
     % using matlab's wblfit function, which employs MLE
-	hist_tail;
+	hist_tail(:)'
     [wa, wb] = weibull_params(hist_tail);
     
     % If either the scale or the shape parameter is
