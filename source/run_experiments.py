@@ -9,15 +9,18 @@ from common.cfgloader import cfgloader
 
 from ExperimentManager import ExperimentManager
 
-def run_experiment(dataset, descriptor, expcfgfile):
+def run_experiment(dataset_choices, expcfgfile):
 
     e_manager = ExperimentManager(pathcfg="/home/alberto/phD/projects/performance_prediction/ret-mr-learning/source/"
                                           "path_2.cfg",
                                   dbparamscfg="/home/alberto/phD/projects/performance_prediction/ret-mr-learning/"
                                               "source/dbparams.cfg")
-    e_manager.set_experiment_map([(dataset, descriptor)])
 
     expcfg = cfgloader(expcfgfile)
+
+    for dataset in dataset_choices:
+        for descnum in dataset_choices[dataset]:
+            e_manager.add_to_experiment_map(dataset, descnum)
 
     if expcfg['DEFAULT']['type'] == 'wbl':
         e_manager.run_weibull_mr(expcfgfile)
@@ -48,4 +51,15 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    run_experiment(args.dataset, args.descnum, args.expconfig)
+    if args.dataset == "all":
+        dataset_choices = descriptor_map
+    else:
+        if args.descnum in descriptor_map[args.dataset]:
+            dataset_choices = dict()
+            dataset_choices[args.dataset] = [args.descnum]
+        else:
+            print("Unavailable descriptor number {0:d} for dataset {1:s}.".format(args.descnum, args.dataset))
+            print("Choise are: ", descriptor_map[args.dataset], "   Exiting\n---")
+            sys.exit(2)
+
+    run_experiment(dataset_choices, args.expconfig)

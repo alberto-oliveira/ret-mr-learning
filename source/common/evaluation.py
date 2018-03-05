@@ -8,7 +8,7 @@ import glob
 import numpy as np
 
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 
@@ -17,9 +17,15 @@ from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score, confusi
 from common.cfgloader import *
 from common.utilities import safe_create_dir
 
-parsecolor = lambda cstr: tuple([float(c) for c in cstr.split(',')])
+parsecolor = lambda cstr: tuple([float(c)/255.0 for c in cstr.split(',')])
 
 class Evaluator:
+
+    # Measure = (<Name of measure>, <measure index in results>, <bottom limit of measure>)
+    measure_map = dict(ACC=('accuracy', 0, 0.0),
+                       NACC=('norm accuracy', 1, 0.0),
+                       F1=('f1 score', 2, 0.0),
+                       MCC=('matthews correlation coefficient', 3, -1.0))
 
     def __init__(self, evalcfgfile="", key="", pathcfg=None):
 
@@ -317,85 +323,80 @@ class Evaluator:
         return nacc
 
 
+    def draw_irp_results(self, outprefix="", measure='MCC', dbparams=None, outf=None):
 
-    def draw_irp_results(self, outprefix="", measure='MCC', dbparams=''):
-
-        if dbparams:
-            dbcfg = cfgloader(dbparams)
-        else:
-            dbcfg = []
+        meas_name, ri, blim = Evaluator.measure_map[measure]
 
         nmet = len(self.data)
 
-        fw = 0.1
-        sw = 0.025
-        bw = (1 + sw - nmet*sw - fw/2)/(nmet - 0.5)
-
-        if measure == 'ACC':
-            resi = 0
-        elif measure == 'F1':
-            resi = 1
-        elif measure == 'MCC':
-            resi = 2
+        fw = 0.1    # space betweem limiting border and axis
+        sw = 0.025  # space between bars
+        bw = 0.25   # bar width
 
         rects = dict()
 
+        x = fw
         for i, mdata in enumerate(self.data):
 
-            x = i*(bw + sw) + fw/2
-
-            val = mdata['irp_evaluation'][-1, resi]
+            val = mdata['irp_evaluation'][-1, ri]
 
             print(mdata['params']['color'])
-            #try:
-            rect = plt.bar(x, val, label=mdata['params']['label'])
-            #except:
-                #return
-            rects[mdata['name']] = rect
 
-            #plt.autoscale(False)
+            rect = plt.bar(x, val, bw, 0, align='edge', label=mdata['params']['label'], color=mdata['params']['color'])
+            rects[mdata['name']] = rect
 
             posx = rect[0].get_x()
             posy = rect[0].get_y()
-            wdt = rect[0].get_width()
             hgt = rect[0].get_height()
+            wdt = rect[0].get_width()
 
-            plt.text(posx, posy + hgt + 0.01, "{0:0.2f}".format(val), fontsize=12, bbox={'alpha': 0.0})
+            plt.text(posx + wdt/2, posy + hgt + 0.01, "{0:0.3f}".format(val), fontsize=16, bbox={'alpha': 0.0},
+                     horizontalalignment='center')
+
+            x += bw + sw
+
+        max_x = fw + nmet*bw + (nmet-1)*sw + fw
+        plt.xlim(0.0, max_x)
 
         if measure != 'MCC':
-            if dbcfg:
-                p10 = dbcfg[self.key].getfloat('p10')
+            if dbparams:
+                p10 = dbparams[self.key].getfloat('p10')
                 plt.plot([0.0, 4.0], [p10, p10], 'r--', linewidth=2)
-            plt.ylim(bottom=-1.0, top=1.0)
-            leg_ypos = 0.08
+            plt.ylim(bottom=blim, top=1.0)
+            leg_ypos = 0.10
             plt.yticks([float(x) / 10 for x in range(0, 11, 1)])
         else:
-            plt.ylim(bottom=0, top=1.0)
-            leg_ypos = 0.14
+            plt.ylim(bottom=blim, top=1.0)
+            leg_ypos = 0.1
             plt.yticks([float(x) / 10 for x in range(-10, 11, 2)])
 
         plt.tick_params(axis='x', which='both', bottom='off', top='off', labelbottom='off')
 
         plt.ylabel(measure)
         plt.grid(True, axis='y')
-        plt.title("Individual Rank Prediction -- {0:s} -- {1:s}".format(measure, self.key),
-                      fontdict={'fontsize': 18})
+        plt.title("Individual Rank Prediction -- {0:s}\n{1:s}".format(measure, self.key),
+                      fontdict={'fontsize': 18, 'horizontalalignment': 'center'})
 
         plt.legend(loc='upper center', bbox_to_anchor=(0.5, leg_ypos), bbox_transform=plt.gcf().transFigure,
-                   fancybox=True, shadow=True, ncol=nmet)
+                   fancybox=True, shadow=True, ncol=nmet-2)
 
-        #plt.tight_layout()
+        if not outf:
+            safe_create_dir(self.respath)
 
-        safe_create_dir(self.respath)
+            if outprefix == "":
+                outprefix = self.evalname + ".{0:s}.".format(self.key)
 
-        if outprefix == "":
-            outprefix = self.evalname + ".{0:s}.".format(self.key)
+            outfilename = "{0:s}/{2:s}_irp_{3:s}.pdf".format(self.respath, self.evalname, outprefix, measure)
 
-        outfilename = "{0:s}/{2:s}_irp_{3:s}.pdf".format(self.respath, self.evalname, outprefix, measure)
+            plt.savefig(outfilename)
 
-        print(outfilename)
-        plt.savefig(outfilename)
+        else:
+            outf.savefig()
 
+        #plt.show()
+
+        plt.cla()
+        plt.clf()
 
 
 
