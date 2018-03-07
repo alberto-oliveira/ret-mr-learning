@@ -10,8 +10,8 @@ descriptor_map = OrderedDict(oxford=[1],
                              unicamp=[1],
                              unicamp100k=[1],
                              vggfaces=[1],
-                             places365=[1],
-                             test=[1])
+                             places365=[1])
+                             #test=[1])
                              #brodatz=[2, 6],
                              #mpeg7=[2, 6],
                              #multimodal=[2, 11])

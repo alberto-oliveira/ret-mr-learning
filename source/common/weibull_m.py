@@ -11,6 +11,7 @@ from sklearn.base import BaseEstimator
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
 
 import matlab.engine
+from matlab.engine import MatlabExecutionError
 
 from time import perf_counter
 
@@ -183,15 +184,27 @@ class WeibullMR_M(BaseEstimator):
                 sidx = np.clip(sidx-d, 0, tail_sz)
 
         tail_dist = tail_u[sidx:eidx]
+
+        tail_dist[tail_dist == 0] += 0.00001
+
         #print(tail_dist)
 
-        tws = perf_counter()
-        scl, shp = WeibullMR_M.weibull_estim_matlab(tail_dist)
-        twe = perf_counter()
+        t = np.inf
+        tws = 0
+        twe = 0
+        tqs = 0
+        tqe = 0
 
-        tqs = perf_counter()
-        t = WeibullMR_M.weibull_quant_matlab(scl, shp, self.delta)
-        tqe = perf_counter()
+        try:
+            tws = perf_counter()
+            scl, shp = WeibullMR_M.weibull_estim_matlab(tail_dist)
+            twe = perf_counter()
+
+            tqs = perf_counter()
+            t = WeibullMR_M.weibull_quant_matlab(scl, shp, self.delta)
+            tqe = perf_counter()
+        except MatlabExecutionError:
+            pdb.set_trace()
 
         #if self.v:
             #print("     -> Tail Distribution Size:", tail_dist.shape,
@@ -235,7 +248,6 @@ class WeibullMR_M(BaseEstimator):
                 results = []
 
                 for i in range(nsamples):
-                    #pdb.set_trace()
                     tail = tailX[i, :]
 
                     t, tw, tq = self.weibull_fixed(tail, f, z)

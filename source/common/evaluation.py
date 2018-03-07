@@ -140,9 +140,6 @@ class Evaluator:
             irp_flist = glob.glob(self.outpath + "{0:s}/rel-prediction/*.npy".format(nm))
             rpp_flist = glob.glob(self.outpath + "{0:s}/perf-prediction/*.npy".format(nm))
 
-            #print(self.outpath + "{0:s}/rel-prediction/*.npy".format(nm))
-            #print(self.outpath + "{0:s}/perf-prediction/*.npy".format(nm))
-
             irp_flist.sort()
             rpp_flist.sort()
 
@@ -158,7 +155,7 @@ class Evaluator:
 
         np.seterr(divide='ignore', invalid='ignore')
         for mdata in self.__data:
-            print("Evaluating:", mdata['name'])
+            #print("Evaluating:", mdata['name'])
             # Individual Rank Position (irp) Evaluation
             irp_evaluation = []
 
@@ -325,6 +322,7 @@ class Evaluator:
 
     def draw_irp_results(self, outprefix="", measure='MCC', dbparams=None, outf=None):
 
+        plt.figure()
         meas_name, ri, blim = Evaluator.measure_map[measure]
 
         nmet = len(self.data)
@@ -340,7 +338,7 @@ class Evaluator:
 
             val = mdata['irp_evaluation'][-1, ri]
 
-            print(mdata['params']['color'])
+            #print(mdata['params']['color'])
 
             rect = plt.bar(x, val, bw, 0, align='edge', label=mdata['params']['label'], color=mdata['params']['color'])
             rects[mdata['name']] = rect
@@ -380,23 +378,18 @@ class Evaluator:
         plt.legend(loc='upper center', bbox_to_anchor=(0.5, leg_ypos), bbox_transform=plt.gcf().transFigure,
                    fancybox=True, shadow=True, ncol=nmet-2)
 
-        if not outf:
-            safe_create_dir(self.respath)
+        safe_create_dir(self.respath)
 
-            if outprefix == "":
-                outprefix = self.evalname + ".{0:s}.".format(self.key)
+        # if outprefix == "":
+        #     outprefix = self.evalname + ".{0:s}.".format(self.key)
+        #
+        # outfilename = "{0:s}/{2:s}_irp_{3:s}.pdf".format(self.respath, self.evalname, outprefix, measure)
+        #
+        # plt.savefig(outfilename)
 
-            outfilename = "{0:s}/{2:s}_irp_{3:s}.pdf".format(self.respath, self.evalname, outprefix, measure)
+        outf.savefig()
+        plt.close()
 
-            plt.savefig(outfilename)
-
-        else:
-            outf.savefig()
-
-        #plt.show()
-
-        plt.cla()
-        plt.clf()
 
 
 

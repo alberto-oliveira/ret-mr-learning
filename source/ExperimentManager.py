@@ -14,6 +14,7 @@ from common.mappings import descriptor_map, baseline_map
 from common.classification import *
 
 import numpy as np
+np.random.seed(93311)
 
 class ExperimentManager:
 
@@ -273,7 +274,7 @@ class ExperimentManager:
                 print("---")
 
 
-    def run_weibull_mr(self, expconfig, sampling=1.0, backend="matlab"):
+    def run_weibull_mr(self, expconfig, sampling=-1.0, backend="matlab"):
 
         #from common.weibull_r import WeibullMR_R
         from common.weibull_m import WeibullMR_M
@@ -337,7 +338,13 @@ class ExperimentManager:
                             TRAIN_X = ranks[idx_1, :]
                             TRAIN_y = labels[idx_1, :]
 
-                            # SAMPLING SHOULD GO HERE #
+                            if sampling > 0.0 and TRAIN_X.shape[0] >= 1000:
+                                sample_i = np.arange(0, TRAIN_X.shape[0])
+                                np.random.shuffle(sample_i)
+                                sample_i = sample_i[:np.int(sampling*TRAIN_X.shape[0])]
+
+                                TRAIN_X = TRAIN_X[sample_i, :]
+                                TRAIN_y = TRAIN_y[sample_i, :]
 
                             wbl.fit(TRAIN_X, TRAIN_y, f_val=(0.1, 0.85, 0.1), z_val=(0.2, 1.1, 0.2))
 
@@ -369,6 +376,14 @@ class ExperimentManager:
                             TRAIN_y = labels[idx_0, :]
 
                             # SAMPLING SHOULD GO HERE #
+
+                            if sampling > 0.0 and TRAIN_X.shape[0] >= 1000:
+                                sample_i = np.arange(0, TRAIN_X.shape[0])
+                                np.random.shuffle(sample_i)
+                                sample_i = sample_i[:np.int(sampling*TRAIN_X.shape[0])]
+
+                                TRAIN_X = TRAIN_X[sample_i, :]
+                                TRAIN_y = TRAIN_y[sample_i, :]
 
                             wbl.fit(TRAIN_X, TRAIN_y, f_val=(0.1, 0.85, 0.1), z_val=(0.2, 1.1, 0.2))
 

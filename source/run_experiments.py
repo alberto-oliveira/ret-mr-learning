@@ -23,7 +23,7 @@ def run_experiment(dataset_choices, expcfgfile):
             e_manager.add_to_experiment_map(dataset, descnum)
 
     if expcfg['DEFAULT']['type'] == 'wbl':
-        e_manager.run_weibull_mr(expcfgfile)
+        e_manager.run_weibull_mr(expcfgfile, sampling=0.2)
         e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
     if expcfg['DEFAULT']['type'] == 'lrn':
         e_manager.run_learning_mr(expcfgfile)
@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     parser.add_argument("dataset", help="dataset to run experiment.",
                         type=str,
-                        choices=list(descriptor_map.keys()))
+                        choices=list(descriptor_map.keys()) + ["all"])
 
     parser.add_argument("descnum", help="descriptor number. If the descriptor number does not exist for the dataset."
                         "exits with error.",
