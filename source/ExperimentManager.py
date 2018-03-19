@@ -13,6 +13,10 @@ from common.utilities import safe_create_dir, preprocess_ranks
 from common.mappings import descriptor_map, baseline_map
 from common.classification import *
 
+import time
+
+import ipdb as pdb
+
 import numpy as np
 np.random.seed(93311)
 
@@ -287,6 +291,13 @@ class ExperimentManager:
         notop = expcfg['DEFAULT'].getboolean('notop')
         k = expcfg['DEFAULT'].getint('topk')
 
+        if method == 'fixed':
+            fran = (0.1, 0.85, 0.1)
+            zran = (0.2, 1.1, 0.2)
+        elif method == 'mixt':
+            fran = (0.2, 0.85, 0.2)
+            zran = (0.25, 1.1, 0.25)
+
         for dataset in self.__expmap:
                 for descnum in self.__expmap[dataset]:
                     dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
@@ -326,15 +337,18 @@ class ExperimentManager:
 
                         # Train is fold 1 and Test is fold 0
                         TEST_X = ranks[idx_0, :]
-                        wblpath = "{0:s}weibull-fixed_r{1:03d}_000.wbl".format(outdir, r)
+                        wblpath = "{0:s}weibull-{2:s}_r{1:03d}_000.wbl".format(outdir, r, method)
 
                         # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
                         try:
                             with open(wblpath, 'rb') as inpf:
                                 wbl = pickle.load(inpf)
 
+                            te = -1.0
+                            ts = 0.0
+
                         except FileNotFoundError:
-                            wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
+                            wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=False, verbose=True)
                             TRAIN_X = ranks[idx_1, :]
                             TRAIN_y = labels[idx_1, :]
 
@@ -346,32 +360,41 @@ class ExperimentManager:
                                 TRAIN_X = TRAIN_X[sample_i, :]
                                 TRAIN_y = TRAIN_y[sample_i, :]
 
-                            wbl.fit(TRAIN_X, TRAIN_y, f_val=(0.1, 0.85, 0.1), z_val=(0.2, 1.1, 0.2))
+                            #pdb.set_trace()
+                            ts = time.perf_counter()
+                            wbl.fit(TRAIN_X, TRAIN_y, f_val=fran, z_val=zran)
+                            te = time.perf_counter()
 
-                        print("       -> With [1] as training (F, Z) =", (wbl.F, wbl.Z))
+                        print("     -> With [1] as training (F:{0:0.2f}, Z:{1:0.2f}): M = {2:0.3f}"
+                              .format(wbl.F, wbl.Z, wbl.opt_val))
+                        print("     -> Elapsed: {0:0.3f}s".format(te-ts))
+
                         predicted, _ = wbl.predict(TEST_X)
 
                         outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_irp.npy".format(outdir, dkey, r, k)
-                        print("    -> ", os.path.basename(outfile), "...", end="", flush=True)
+                        print("     ->", os.path.basename(outfile), "...", end="", flush=True)
 
                         np.save(outfile, predicted)
 
                         # Let's save this predictor
                         with open(wblpath, 'wb') as outf:
                             pickle.dump(wbl, outf)
-                        print(" Done!")
+                        print(" Done!\n")
 
                         # Train is fold 0 and Test is fold 1
                         TEST_X = ranks[idx_1, :]
-                        wblpath = "{0:s}weibull-fixed_r{1:03d}_001.wbl".format(outdir, r)
+                        wblpath = "{0:s}weibull-{2:s}_r{1:03d}_001.wbl".format(outdir, r, method)
 
                         # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
                         try:
                             with open(wblpath, 'rb') as inpf:
                                 wbl = pickle.load(inpf)
 
+                            te = -1.0
+                            ts = 0.0
+
                         except FileNotFoundError:
-                            wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=notop, verbose=False)
+                            wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=False, verbose=True)
                             TRAIN_X = ranks[idx_0, :]
                             TRAIN_y = labels[idx_0, :]
 
@@ -385,20 +408,26 @@ class ExperimentManager:
                                 TRAIN_X = TRAIN_X[sample_i, :]
                                 TRAIN_y = TRAIN_y[sample_i, :]
 
-                            wbl.fit(TRAIN_X, TRAIN_y, f_val=(0.1, 0.85, 0.1), z_val=(0.2, 1.1, 0.2))
+                            pdb.set_trace()
+                            ts = time.perf_counter()
+                            wbl.fit(TRAIN_X, TRAIN_y, f_val=fran, z_val=zran)
+                            te = time.perf_counter()
 
-                        print("       -> With [0] as training (F, Z) =", (wbl.F, wbl.Z))
+                        print("     -> With [0] as training (F:{0:0.2f}, Z:{1:0.2f}): M = {2:0.3f}"
+                              .format(wbl.F, wbl.Z, wbl.opt_val))
+                        print("     -> Elapsed: {0:0.3f}s".format(te - ts))
+
                         predicted, _ = wbl.predict(TEST_X)
 
                         outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
-                        print("    -> ", os.path.basename(outfile), "...", end="", flush=True)
+                        print("     ->", os.path.basename(outfile), "...", end="", flush=True)
 
                         np.save(outfile, predicted)
 
                         # Let's save this predictor
                         with open(wblpath, 'wb') as outf:
                             pickle.dump(wbl, outf)
-                        print(" Done!")
+                        print(" Done!\n")
 
 
 

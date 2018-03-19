@@ -14,6 +14,8 @@ import matplotlib.lines as mlines
 
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score, confusion_matrix
 
+import ipdb as pdb
+
 from common.cfgloader import *
 from common.utilities import safe_create_dir
 
@@ -135,6 +137,7 @@ class Evaluator:
         # Loading Predicted Labels
         for mdata in self.__data:
 
+            #pdb.set_trace()
             nm = mdata['name']
 
             irp_flist = glob.glob(self.outpath + "{0:s}/rel-prediction/*.npy".format(nm))

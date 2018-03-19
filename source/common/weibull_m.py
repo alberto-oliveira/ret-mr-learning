@@ -17,6 +17,8 @@ from time import perf_counter
 
 import ipdb as pdb
 
+np.random.seed(93311)
+
 def unwrap_self(arg, **kwarg):
     return WeibullMR_M.weibull_fixed(*arg, **kwarg)
 
@@ -30,7 +32,6 @@ class WeibullMR_M(BaseEstimator):
         self.k = k
         self.delta = delta
         self.opt_metric = opt_metric
-        self.method = method
         self.notop = notop
         self.v = verbose
 
@@ -39,19 +40,38 @@ class WeibullMR_M(BaseEstimator):
 
         self._opt_val = -np.inf
 
-        self.__min_tail_sz = 5
+        self.__min_tail_sz = 4
 
         self.__eval_metric = WeibullMR_M.__opt_metrics_map.get(self.opt_metric, None)
 
-        if self.method == 'fixed':
-            self.__wmethod = self.weibull_fixed
-        elif self.method == 'mixt':
-            #self.__wmethod = self.__weibull_mixt
-            self.__wmethod = self.weibull_fixed
+        if method == 'fixed':
+            self.__method_name = method
+            self._wmethod = self.weibull_fixed
+        elif method == 'mixt':
+            self.__method_name = method
+            self._wmethod = self.weibull_mixture
+            #self.__wmethod = self.weibull_fixed
         else:
-            raise TypeError('Undefined weibull method <{0:s}> - options are: ', set('fixed', 'mixt'))
+            raise TypeError('Undefined weibull method <{0:s}> - options are: ', set(['fixed', 'mixt']))
 
+    @property
+    def opt_val(self):
+        return self._opt_val
 
+    @property
+    def wmethod(self):
+        return self.__method_name
+
+    @wmethod.setter
+    def wmethod(self, method):
+        if method == 'fixed':
+            self.__method_name = method
+            self._wmethod = self.weibull_fixed
+        elif method == 'mixt':
+            self.__method_name = method
+            self._wmethod = self.weibull_mixture
+        else:
+            raise TypeError('Undefined weibull method <{0:s}> - options are: '.format(method), set(['fixed', 'mixt']))
 
     @property
     def F(self):
@@ -152,7 +172,7 @@ class WeibullMR_M(BaseEstimator):
             tail = tailX[i, :]
             target = targetX[i, :]
 
-            t, _, _ = self.weibull_fixed(tail, self._F, self._Z)
+            t, _, _ = self._wmethod(tail, self._F, self._Z)
             t_values.append(t)
 
             p = (target >= t).astype(np.uint8)
@@ -167,44 +187,52 @@ class WeibullMR_M(BaseEstimator):
 
         #pdb.set_trace()
         tail_u = np.unique(tail)[::-1]
-        tail_u = tail_u[tail_u != -1]
+        tail_u = tail_u[tail_u != -1]   # Full tail
         #tail_u = tail[tail != -1]
-        tail_sz = tail_u.shape[0]
+        tail_sz = tail_u.shape[0]       # Full tail size
 
-        sidx = int(np.floor(f*tail_sz))   # starting index of the distribution
-        w = int(np.floor(z*(tail_u[sidx:].shape[0])))
+        if tail_sz < self.__min_tail_sz:
+            if self.v:
+                print("# of unique scores is less than the minimum tail size of {0:d}".format(self.__min_tail_sz))
+                print("  -> Setting t = -1: All predictions non-relevant. ")
+            return -1, 0.0, 0.0
 
-        if w >= self.__min_tail_sz:
-            eidx = sidx + w
-        else:
-            eidx = np.clip(sidx + self.__min_tail_sz, 0, tail_sz)
+        sidx = int(np.floor(f*tail_sz))                     # starting index of the distribution
+        tlen = int(np.floor(z*(tail_u[sidx:].shape[0])))    # tail distribution length
 
-            if (eidx-sidx) < self.__min_tail_sz:
-                d = (eidx-sidx)
-                sidx = np.clip(sidx-d, 0, tail_sz)
+        eidx = sidx + tlen                                  # ending index of the distribution
+
+        # While the tail distribution does not hit minimum size, increase its size by one on each end that can be
+        # increased. If no minimum tail size is hit, returns t = -1 as a dummy prediction that no top score is
+        # relevant.
+        while tlen < self.__min_tail_sz and (sidx > 0 or eidx < tail_sz):
+            if sidx-1 >= 0:
+                sidx -= 1
+                tlen += 1
+            if eidx+1 <= tail_sz:
+                eidx += 1
+                tlen += 1
+
+        if tlen < self.__min_tail_sz:
+            if self.v:
+                print("Could not extend the tail to reach minimum tail size of {0:d}".format(self.__min_tail_sz))
+                print("  -> Setting t = -1: All predictions non-relevant. ")
+            return -1, 0.0, 0.0
 
         tail_dist = tail_u[sidx:eidx]
 
         tail_dist[tail_dist == 0] += 0.00001
 
-        #print(tail_dist)
+        tws = perf_counter()
+        scl, shp = WeibullMR_M.weibull_estim_matlab(tail_dist)
+        twe = perf_counter()
 
-        t = np.inf
-        tws = 0
-        twe = 0
-        tqs = 0
-        tqe = 0
-
+        tqs = perf_counter()
         try:
-            tws = perf_counter()
-            scl, shp = WeibullMR_M.weibull_estim_matlab(tail_dist)
-            twe = perf_counter()
-
-            tqs = perf_counter()
             t = WeibullMR_M.weibull_quant_matlab(scl, shp, self.delta)
-            tqe = perf_counter()
         except MatlabExecutionError:
-            pdb.set_trace()
+            t = np.inf
+        tqe = perf_counter()
 
         #if self.v:
             #print("     -> Tail Distribution Size:", tail_dist.shape,
@@ -212,6 +240,104 @@ class WeibullMR_M(BaseEstimator):
 
         return t, (twe-tws), (tqe-tqs)
 
+    def weibull_mixture(self, tail, f, z):
+
+        n_iter = 30
+        inc_f = self.__min_tail_sz
+        dec_f = self.__min_tail_sz
+
+        #pdb.set_trace()
+        tail_u = np.unique(tail)[::-1]
+        tail_u = tail_u[tail_u != -1]   # Full tail
+        #tail_u = tail[tail != -1]
+        tail_sz = tail_u.shape[0]       # Full tail size
+
+        if tail_sz < self.__min_tail_sz:
+            if self.v:
+                print("# of unique scores is less than the minimum tail size of {0:d}".format(self.__min_tail_sz))
+                print("  -> Setting t = -1: All predictions non-relevant. ")
+            return -1, 0.0, 0.0
+
+        sidx = int(np.floor(f*tail_sz))                     # starting index of the distribution
+        tlen = int(np.floor(z*(tail_u[sidx:].shape[0])))    # tail distribution length
+
+        eidx = sidx + tlen                                  # ending index of the distribution
+
+        # While the tail distribution does not hit minimum size, increase its size by one on each end that can be
+        # increased. If no minimum tail size is hit, returns t = -1 as a dummy prediction that no top score is
+        # relevant.
+        while tlen < self.__min_tail_sz and (sidx > 0 or eidx < tail_sz):
+            if sidx-1 >= 0:
+                sidx -= 1
+                tlen += 1
+            if eidx+1 <= tail_sz:
+                eidx += 1
+                tlen += 1
+
+        if tlen < self.__min_tail_sz:
+            if self.v:
+                print("Could not extend the tail to reach minimum tail size of {0:d}".format(self.__min_tail_sz))
+                print("  -> Setting t = -1: All predictions non-relevant. ")
+            return -1, 0.0, 0.0
+
+
+        # The start of the tail increases by subtracting from sidx (starting index) and decreases by adding to sidx.
+        # The maximum increase is inc_f, and maximum decrease is dec_f.
+        a = sidx-inc_f
+        if a < 0:
+            a = 0
+
+        b = sidx+dec_f
+        if b > tail_sz:
+            b = tail_sz
+
+        start_rg = np.arange(a, b+1, dtype=np.int32)
+
+
+        # The end of the tail increases by adding to eidx (ending index) and decreases by subtracting from eidx.
+        # The maximum increase is inc_f. The maximum decrease is dec_f.
+        a = eidx-dec_f
+        if a < 0:
+            a = 0
+
+        b = eidx+inc_f
+        if b > tail_sz:
+            b = tail_sz
+
+        end_rg = np.arange(a, b+1, dtype=np.int32)
+
+        idx_pairs = np.array(np.meshgrid(start_rg, end_rg)).T.reshape(-1, 2)
+        np.random.shuffle(idx_pairs)
+        wblgen = []
+
+        tws = perf_counter()
+        it = 0
+        while n_iter >= 0 and it < idx_pairs.shape[0]:
+            sp, ep = idx_pairs[it]
+
+            # Skips any index pair which do not generate a tail with minimum size
+            if ep - sp >= self.__min_tail_sz:
+
+                tail_dist = tail_u[sp:ep]
+
+                tail_dist[tail_dist == 0] += 0.00001
+
+                scl, shp = WeibullMR_M.weibull_estim_matlab(tail_dist)
+                wblgen.append(WeibullMR_M.weibull_gen_matlab(scl, shp, 50))
+                n_iter -= 1
+
+            it += 1
+        twe = perf_counter()
+
+        scl, shp = WeibullMR_M.weibull_estim_matlab(np.array(wblgen).reshape(-1))
+        tqs = perf_counter()
+        try:
+            t = WeibullMR_M.weibull_quant_matlab(scl, shp, self.delta)
+        except MatlabExecutionError:
+            t = np.inf
+        tqe = perf_counter()
+
+        return t, (twe-tws), (tqe-tqs)
 
     def __find_best_params(self, X, y, f_range, z_range):
 
@@ -250,7 +376,10 @@ class WeibullMR_M(BaseEstimator):
                 for i in range(nsamples):
                     tail = tailX[i, :]
 
-                    t, tw, tq = self.weibull_fixed(tail, f, z)
+                    #ts = perf_counter()
+                    t, tw, tq = self._wmethod(tail, f, z)
+                    #te = perf_counter()
+                    #pdb.set_trace()
 
                     results.append([t, tw, tq])
 
@@ -276,8 +405,8 @@ class WeibullMR_M(BaseEstimator):
 
                 if m >= self._opt_val:
                     if self.v:
-                        print("     -- Updating F: {0:0.1f} -> {1:0.1f}".format(bestf, f), file=sys.stdout, flush=True)
-                        print("     -- Updating Z: {0:0.1f} -> {1:0.1f}".format(bestz, z), file=sys.stdout, flush=True)
+                        print("     -- Updating F: {0:0.2f} -> {1:0.2f}".format(bestf, f), file=sys.stdout, flush=True)
+                        print("     -- Updating Z: {0:0.2f} -> {1:0.2f}".format(bestz, z), file=sys.stdout, flush=True)
                     bestf = f
                     bestz = z
                     self._opt_val = m
@@ -298,6 +427,15 @@ class WeibullMR_M(BaseEstimator):
         sys.stderr.flush()
 
         return t
+
+    @staticmethod
+    def weibull_gen_matlab(scl, shp, n):
+
+        wblr = WeibullMR_M.__matlab_engine.wblrnd(scl, shp, n, 1)
+
+        sys.stderr.flush()
+        arr = np.array(wblr, dtype=np.float64).reshape(-1)
+        return arr
 
     @staticmethod
     def weibull_estim_matlab(data):

@@ -9,7 +9,7 @@ from common.cfgloader import cfgloader
 
 from ExperimentManager import ExperimentManager
 
-def run_experiment(dataset_choices, expcfgfile):
+def run_experiment(dataset_choices, expcfgfile, sval):
 
     e_manager = ExperimentManager(pathcfg="/home/alberto/phD/projects/performance_prediction/ret-mr-learning/source/"
                                           "path_2.cfg",
@@ -23,7 +23,7 @@ def run_experiment(dataset_choices, expcfgfile):
             e_manager.add_to_experiment_map(dataset, descnum)
 
     if expcfg['DEFAULT']['type'] == 'wbl':
-        e_manager.run_weibull_mr(expcfgfile, sampling=0.2)
+        e_manager.run_weibull_mr(expcfgfile, sampling=sval)
         e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
     if expcfg['DEFAULT']['type'] == 'lrn':
         e_manager.run_learning_mr(expcfgfile)
@@ -48,6 +48,8 @@ if __name__ == "__main__":
                         type=int)
 
     parser.add_argument("expconfig", help="path to experiment config file.")
+    parser.add_argument("-s", "--sampling", help="Optional sampling value for training sets in weibull mode.",
+                        type=float, default=1.0)
 
     args = parser.parse_args()
 
@@ -62,4 +64,4 @@ if __name__ == "__main__":
             print("Choise are: ", descriptor_map[args.dataset], "   Exiting\n---")
             sys.exit(2)
 
-    run_experiment(dataset_choices, args.expconfig)
+    run_experiment(dataset_choices, args.expconfig, args.sampling)
