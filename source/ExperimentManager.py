@@ -58,7 +58,10 @@ class ExperimentManager:
                     raise ValueError("Unavailable descriptor number {0:d} for dataset {1:s}."
                                      " Available: {2:s}".format(descnum, dataset, str(descriptor_map[dataset])))
                 else:
-                    self.__expmap[dataset] = [descnum]
+                    if dataset not in self.__expmap:
+                        self.__expmap[dataset] = [descnum]
+                    else:
+                        self.__expmap[dataset].append(descnum)
 
     def add_to_experiment_map(self, dataset, descnum):
 
@@ -108,8 +111,14 @@ class ExperimentManager:
                     outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_bsl_irp.npy".format(outdir, dkey, r, k)
 
                     params = (fs, k, self.__dbparams[dkey].getfloat('p10'))
-                    if bsl == 'ranp':
+                    if bsl == 'maxn':
+                        labels = np.load(glob.glob(self.__pathcfg["label"][dkey] + "*irp*")[0])
+                        fidx = np.argwhere(fold_idx[:, r] == 0)
+                        bslarray = baseline_map[bsl](labels[fidx])
+
+                    elif bsl == 'ranp':
                         bslarray = baseline_map[bsl](*params)
+
                     else:
                         bslarray = baseline_map[bsl](*params[0:2])
 
@@ -121,8 +130,14 @@ class ExperimentManager:
 
                     # Shape from test_idx is the number of examples in that fold
                     params = (fs, k, self.__dbparams[dkey].getfloat('p10'))
-                    if bsl == 'ranp':
+                    if bsl == 'maxn':
+                        labels = np.load(glob.glob(self.__pathcfg["label"][dkey] + "*irp*")[0])
+                        fidx = np.argwhere(fold_idx[:, r] == 1)
+                        bslarray = baseline_map[bsl](labels[fidx])
+
+                    elif bsl == 'ranp':
                         bslarray = baseline_map[bsl](*params)
+
                     else:
                         bslarray = baseline_map[bsl](*params[0:2])
 
@@ -408,7 +423,7 @@ class ExperimentManager:
                                 TRAIN_X = TRAIN_X[sample_i, :]
                                 TRAIN_y = TRAIN_y[sample_i, :]
 
-                            pdb.set_trace()
+                            #pdb.set_trace()
                             ts = time.perf_counter()
                             wbl.fit(TRAIN_X, TRAIN_y, f_val=fran, z_val=zran)
                             te = time.perf_counter()

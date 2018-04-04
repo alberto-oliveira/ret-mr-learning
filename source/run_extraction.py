@@ -51,9 +51,9 @@ def run_extraction(dataset_choices, expconfig):
 
                 aux = dict(positional=[], rank=[])
 
-                rank = read_rank(rkfpath)
+                rank = read_rank(rkfpath, dbparams[dkey]['scoretype'])
                 for r in range(0, k):  # Iterates over rank positions
-                    features = extract_rank_features(rank[dbparams[dkey]['scoretype']], extractor_list, ci=r)
+                    features = extract_rank_features(rank, extractor_list, ci=r)
 
                     # Some features are per-rank, others are positional (that is, for each top-k positions)
                     # Although I recalculate per-rank feat. for each position, when concatenating for the top-k

@@ -5,6 +5,9 @@ import os
 import traceback
 import errno
 import glob
+import time
+
+import ipdb as pdb
 
 import numpy as np
 
@@ -76,20 +79,23 @@ def preprocess_ranks(dir, colname='votes', maxsz=1000):
     rkpathlist.sort()
 
     rklist = []
+    ts = time.perf_counter()
     for fpath in rkpathlist:
 
-        sarr = read_rank(fpath)
+        rk = read_rank(fpath, colname)
 
-        if sarr.shape[0] > maxsz:
-            rk = sarr[colname][:maxsz]
-        elif sarr.shape[0] == maxsz:
-            rk = sarr[colname]
+        if rk.shape[0] > maxsz:
+            rklist.append(rk)
+            maxsz = rk.shape[0]
         else:
-            rk = np.pad(sarr[colname], (0, maxsz-sarr.shape[0]), 'constant', constant_values=-1)
-
-        rklist.append(rk)
+            rklist.append(np.pad(rk, (0, maxsz-rk.shape[0]), 'constant', constant_values=-1))
 
     rkarr = np.vstack(rklist)
+    te = time.perf_counter()
+
+    del rklist
+
+    print("Elapsed: {0:0.3f}s".format(te-ts))
 
     return rkarr
 

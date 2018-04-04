@@ -188,7 +188,9 @@ class WeibullMR_M(BaseEstimator):
         #pdb.set_trace()
         tail_u = np.unique(tail)[::-1]
         tail_u = tail_u[tail_u != -1]   # Full tail
-        #tail_u = tail[tail != -1]
+
+        #tail_u = np.fliplr(np.sort(tail[tail != -1].reshape(1, -1))).reshape(-1)
+
         tail_sz = tail_u.shape[0]       # Full tail size
 
         if tail_sz < self.__min_tail_sz:

@@ -309,16 +309,20 @@ class Evaluator:
 
         cfmat = confusion_matrix(y_true, y_pred)
 
-        TN = cfmat[0, 0]
-        FN = cfmat[1, 0]
+        if cfmat.size == 1:
+            nacc = 1.0
 
-        FP = cfmat[0, 1]
-        TP = cfmat[1, 1]
+        else:
+            TN = cfmat[0, 0]
+            FN = cfmat[1, 0]
 
-        TNR = TN/(TN + FP)
-        TPR = TP/(TP + FN)
+            FP = cfmat[0, 1]
+            TP = cfmat[1, 1]
 
-        nacc = (TNR + TPR)/2
+            TNR = TN/(TN + FP)
+            TPR = TP/(TP + FN)
+
+            nacc = (TNR + TPR)/2
 
         return nacc
 
@@ -362,7 +366,7 @@ class Evaluator:
         if measure != 'MCC':
             if dbparams:
                 p10 = dbparams[self.key].getfloat('p10')
-                plt.plot([0.0, 4.0], [p10, p10], 'r--', linewidth=2)
+                line = plt.plot([0.0, 4.0], [p10, p10], 'r--', linewidth=2)
             plt.ylim(bottom=blim, top=1.0)
             leg_ypos = 0.10
             plt.yticks([float(x) / 10 for x in range(0, 11, 1)])
@@ -378,19 +382,25 @@ class Evaluator:
         plt.title("Individual Rank Prediction -- {0:s}\n{1:s}".format(measure, self.key),
                       fontdict={'fontsize': 18, 'horizontalalignment': 'center'})
 
+        if nmet > 3:
+            nleg_col = nmet-2
+        else:
+            nleg_col = nmet
         plt.legend(loc='upper center', bbox_to_anchor=(0.5, leg_ypos), bbox_transform=plt.gcf().transFigure,
-                   fancybox=True, shadow=True, ncol=nmet-2)
+                   fancybox=True, shadow=True, ncol=nleg_col)
 
         safe_create_dir(self.respath)
 
-        # if outprefix == "":
-        #     outprefix = self.evalname + ".{0:s}.".format(self.key)
-        #
-        # outfilename = "{0:s}/{2:s}_irp_{3:s}.pdf".format(self.respath, self.evalname, outprefix, measure)
-        #
-        # plt.savefig(outfilename)
+        if not outf:
+            if outprefix == "":
+                 outprefix = self.evalname + ".{0:s}.".format(self.key)
 
-        outf.savefig()
+            outfilename = "{0:s}/{2:s}_irp_{3:s}.pdf".format(self.respath, self.evalname, outprefix, measure)
+
+            plt.savefig(outfilename)
+
+        else:
+            outf.savefig()
         plt.close()
 
 

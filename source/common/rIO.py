@@ -11,9 +11,14 @@ rel_dtype = dict(names=('name', 'rel'),
                  formats=('U100', np.int32))
 
 
-def read_rank(fpath):
+def read_rank(fpath, colname=''):
 
-    arr = np.loadtxt(fpath, dtype=rk_dtype)
+    if colname != '':
+        c = rk_dtype['names'].index(colname)
+        t = rk_dtype['formats'][c]
+        arr = np.loadtxt(fpath, usecols=c, dtype=t)
+    else:
+        arr = np.loadtxt(fpath, dtype=rk_dtype)
 
     return arr
 

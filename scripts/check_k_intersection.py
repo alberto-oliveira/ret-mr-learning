@@ -7,7 +7,7 @@ import argparse
 
 import numpy as np
 
-sys.path.append("../source/common/")
+sys.path.append("../source/")
 from common.rIO import read_rank
 
 completedir = lambda d: d if d[-1] == "/" else d+"/"
@@ -33,9 +33,9 @@ def check_intersection(rkdir_a, rkdir_b, k):
         isect_ratio = float(len(klist_a.intersection(klist_b)))/k
         isection.append(isect_ratio)
 
-        print("{0:0.3f}".format(isect_ratio))
+        print("{1:s} {0:0.3f}".format(isect_ratio, os.path.basename(rkfpath_a)))
 
-    print("{0:0.3f}".format(np.mean(isection)))
+    print("Average {0:0.3f}".format(np.mean(isection)))
 
     return
 
