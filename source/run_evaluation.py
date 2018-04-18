@@ -17,6 +17,7 @@ def run_evaluation(dataset_choices, evalcfgfile, outprefix):
 
     pdfMCC = PdfPages(outprefix + "_MCC.pdf")
     pdfNACC = PdfPages(outprefix + "_NACC.pdf")
+    pdfPATK = PdfPages(outprefix + "_patk_correlation.pdf")
 
     for dataset in dataset_choices:
         for descnum in dataset_choices[dataset]:
@@ -26,11 +27,13 @@ def run_evaluation(dataset_choices, evalcfgfile, outprefix):
 
             evtor.evaluate()
             evtor.write_results()
-            evtor.draw_irp_results(measure='MCC', dbparams=dbp, outf=pdfMCC)
-            evtor.draw_irp_results(measure='NACC', dbparams=dbp, outf=pdfNACC)
+            evtor.draw_irp_results(measure='MCC', outf=pdfMCC)
+            evtor.draw_irp_results(measure='NACC', outf=pdfNACC)
+            evtor.draw_patk_correlation(outf=pdfPATK)
 
     pdfMCC.close()
     pdfNACC.close()
+    pdfPATK.close()
     print("--- Done ---")
     return
 

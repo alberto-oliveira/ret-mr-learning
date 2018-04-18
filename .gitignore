@@ -1,5 +1,6 @@
 *.rk
 results/
+misc./
 output/
 input-ranks/
 input-labels/
