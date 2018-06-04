@@ -8,7 +8,7 @@ import argparse
 import numpy as np
 
 sys.path.append("../source/")
-from common.rIO import read_rank
+from rankutils.rIO import read_rank
 
 completedir = lambda d: d if d[-1] == "/" else d+"/"
 

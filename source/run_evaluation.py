@@ -4,9 +4,9 @@
 import sys, os
 import argparse
 
-from common.mappings import descriptor_map
-from common.cfgloader import cfgloader
-from common.evaluation import Evaluator
+from rankutils.mappings import descriptor_map
+from rankutils.cfgloader import cfgloader
+from rankutils.evaluation import Evaluator
 
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -15,9 +15,10 @@ def run_evaluation(dataset_choices, evalcfgfile, outprefix):
     pathcfg = cfgloader("/home/alberto/phD/projects/performance_prediction/ret-mr-learning/source/path_2.cfg")
     dbp = cfgloader("/home/alberto/phD/projects/performance_prediction/ret-mr-learning/source/dbparams.cfg")
 
-    pdfMCC = PdfPages(outprefix + "_MCC.pdf")
-    pdfNACC = PdfPages(outprefix + "_NACC.pdf")
-    pdfPATK = PdfPages(outprefix + "_patk_correlation.pdf")
+    pdfMCC = PdfPages(outprefix + "-IRP_MCC.pdf")
+    pdfNACC = PdfPages(outprefix + "-IRP_NACC.pdf")
+    pdfRPP = PdfPages(outprefix + "-RPP_NACC.pdf")
+    #pdfPATK = PdfPages(outprefix + "_patk_correlation.pdf")
 
     for dataset in dataset_choices:
         for descnum in dataset_choices[dataset]:
@@ -29,11 +30,12 @@ def run_evaluation(dataset_choices, evalcfgfile, outprefix):
             evtor.write_results()
             evtor.draw_irp_results(measure='MCC', outf=pdfMCC)
             evtor.draw_irp_results(measure='NACC', outf=pdfNACC)
-            evtor.draw_patk_correlation(outf=pdfPATK)
+            evtor.draw_rpp_results(outf=pdfRPP)
 
     pdfMCC.close()
     pdfNACC.close()
-    pdfPATK.close()
+    pdfRPP.close()
+    #pdfPATK.close()
     print("--- Done ---")
     return
 

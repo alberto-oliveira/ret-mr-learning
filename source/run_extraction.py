@@ -7,11 +7,11 @@ import glob
 
 import numpy as np
 
-from common.extraction import *
-from common.rIO import *
-from common.cfgloader import *
-from common.utilities import safe_create_dir, getbasename
-from common.mappings import descriptor_map
+from rankutils.extraction import *
+from rankutils.rIO import *
+from rankutils.cfgloader import *
+from rankutils.utilities import safe_create_dir, getbasename
+from rankutils.mappings import descriptor_map
 
 def run_extraction(dataset_choices, expconfig):
 

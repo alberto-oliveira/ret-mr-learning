@@ -7,11 +7,11 @@ import pickle
 
 from collections import OrderedDict
 
-from common.labeling import *
-from common.cfgloader import *
-from common.utilities import safe_create_dir, preprocess_ranks
-from common.mappings import descriptor_map, baseline_map
-from common.classification import *
+from rankutils.labeling import *
+from rankutils.cfgloader import *
+from rankutils.utilities import safe_create_dir, preprocess_ranks
+from rankutils.mappings import descriptor_map, baseline_map
+from rankutils.classification import *
 
 import time
 
@@ -295,8 +295,8 @@ class ExperimentManager:
 
     def run_weibull_mr(self, expconfig, sampling=-1.0, backend="matlab"):
 
-        #from common.weibull_r import WeibullMR_R
-        from common.weibull_m import WeibullMR_M
+        #from ranku.weibull_r import WeibullMR_R
+        from rankutils.weibull_m import WeibullMR_M
 
         expcfg = cfgloader(expconfig)
 

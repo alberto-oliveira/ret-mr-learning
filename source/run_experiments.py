@@ -4,8 +4,8 @@
 import sys, os
 import argparse
 
-from common.mappings import descriptor_map
-from common.cfgloader import cfgloader
+from rankutils.mappings import descriptor_map
+from rankutils.cfgloader import cfgloader
 
 from ExperimentManager import ExperimentManager
 

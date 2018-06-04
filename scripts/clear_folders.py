@@ -7,8 +7,8 @@ import argparse
 import glob
 
 sys.path.append("/home/alberto/SpotME/projects/performance-prediction/sources/ret-mr-learning/source")
-from common.cfgloader import *
-from common.mappings import descriptor_map
+from rankutils.cfgloader import *
+from rankutils.mappings import descriptor_map
 
 def clear_folders(dataset_choices, rootname):
 

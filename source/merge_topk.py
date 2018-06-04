@@ -6,13 +6,13 @@ import glob
 import argparse
 import ipdb as pdb
 
-from common.mappings import descriptor_map
-from common.cfgloader import cfgloader
+from rankutils.mappings import descriptor_map
+from rankutils.cfgloader import cfgloader
 
 import numpy as np
 
 sys.path.append("../source/")
-from common.rIO import read_rank, write_rank, rk_dtype
+from rankutils.rIO import read_rank, write_rank, rk_dtype
 
 completedir = lambda d: d if d[-1] == "/" else d + "/"
 

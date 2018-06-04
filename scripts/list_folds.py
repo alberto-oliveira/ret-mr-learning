@@ -6,7 +6,7 @@ import shutil
 import glob
 
 sys.path.append("/home/alberto/SpotME/projects/performance-prediction/sources/ret-mr-learning/source")
-from common.cfgloader import *
+from rankutils.cfgloader import *
 
 def get_outfile_name(rkdir):
 

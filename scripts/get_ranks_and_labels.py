@@ -9,7 +9,7 @@ import shutil
 import numpy as np
 
 sys.path.append("/home/alberto/SpotME/projects/performance-prediction/sources/ret-mr-learning/source")
-from common.utilities import safe_create_dir
+from rankutils.utilities import safe_create_dir
 
 completedir = lambda d: d if d[-1] == '/' else d+'/'
 

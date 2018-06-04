@@ -5,8 +5,8 @@ import sys, os
 import shutil
 sys.path.append("/home/alberto/SpotME/projects/performance-prediction/sources/ret-mr-learning/source")
 
-from common.weibull import *
-from common.utilities import *
+from rankutils.weibull import *
+from rankutils.utilities import *
 
 import numpy as np
 import pickle

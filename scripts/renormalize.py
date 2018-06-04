@@ -9,7 +9,7 @@ sys.path.append("/home/alberto/phD/projects/performance_prediction/ret-mr-learni
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
-from common.rIO import read_rank, write_rank
+from rankutils.rIO import read_rank, write_rank
 
 if __name__ == "__main__":
 

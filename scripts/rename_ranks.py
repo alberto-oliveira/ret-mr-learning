@@ -7,7 +7,7 @@ import glob
 
 sys.path.append("/home/alberto/SpotME/projects/performance-prediction/sources/ret-mr-learning/source")
 
-from common.cfgloader import *
+from rankutils.cfgloader import *
 
 pathcfg = cfgloader('/home/alberto/SpotME/projects/performance-prediction/sources/ret-mr-learning/source/path.cfg')
 
