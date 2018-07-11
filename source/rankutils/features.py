@@ -3,6 +3,8 @@
 import numpy as np
 import scipy.fftpack as fft
 
+from jenkspy import jenks_breaks
+
 
 def rank_features_kDCT(rank, k, dct_type, notop=False):
     """
@@ -27,6 +29,7 @@ def rank_features_kDCT(rank, k, dct_type, notop=False):
 
     return kdct
 
+
 def rank_features_shiftDCT(rank, i, k, dct_type):
     """
     Extracts DCT features from the i-th to (i+k)-th position of the rank.
@@ -43,6 +46,7 @@ def rank_features_shiftDCT(rank, i, k, dct_type):
     kdct = fft.dct(rank[i:i+k], dct_type)
 
     return kdct
+
 
 def rank_features_deltaik(rank, i, k):
     """
@@ -67,6 +71,7 @@ def rank_features_deltaik(rank, i, k):
         fv.append(diff)
 
     return np.array(fv)
+
 
 def rank_features_circ_deltaik(rank, i, k):
     """
@@ -93,3 +98,23 @@ def rank_features_circ_deltaik(rank, i, k):
     return np.array(fv)
 
 
+def rank_features_cluster_diff(rank, i, k, c, centers=[]):
+    """
+    Extracts the Cluster difference features from a rank. Cluster difference features for position i are defined as:
+    <|si - m0|, |si - m1|, |si - m2|, ..., |si - mc|>, where {m0, m1, ..., mc} are m clusters found by jenks-breaks
+    optimization on the scores of the tail, defined as {sk+1, sk+2, ...., sn}
+
+
+    :param rank: numpy array with ranked scores
+    :param i: integer defining anchor position i
+    :param k: integer defining initial position of the tail k
+    :param c: number of clusters to be found by jenks breaks optimization
+    :return: numpy array of features
+    """
+
+    if centers == []:
+        centers = np.sort(np.array(jenks_breaks(rank[k:].reshape(-1), c - 1)))
+
+    fv = np.abs(rank[i] - centers)
+
+    return np.array(fv)

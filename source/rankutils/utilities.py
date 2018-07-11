@@ -2,12 +2,9 @@
 #-*- coding: utf-8 -*-
 
 import os
-import traceback
 import errno
 import glob
 import time
-
-import ipdb as pdb
 
 import numpy as np
 
@@ -70,10 +67,8 @@ def get_rank_colname(rank):
 
     return colname
 
-def preprocess_ranks(dir, colname='votes', maxsz=1000):
+def preprocess_ranks(dir, maxsz=1000):
 
-    if colname not in rk_dtype['names']:
-        raise ValueError('attribute \'colname\' must be one of:', rk_dtype['names'])
 
     rkpathlist = glob.glob(dir + "/*.rk")
     rkpathlist.sort()
@@ -82,7 +77,7 @@ def preprocess_ranks(dir, colname='votes', maxsz=1000):
     ts = time.perf_counter()
     for fpath in rkpathlist:
 
-        rk = read_rank(fpath, colname)
+        rk = read_rank(fpath, 'score')
 
         if rk.shape[0] > maxsz:
             rklist.append(rk)

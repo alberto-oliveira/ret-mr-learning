@@ -46,13 +46,18 @@ def head_tail_clustering(data, t=0.4):
 
 def diff_break_clustering(data, dev_factor=0, min_clusters=-1):
 
-    diffs = (data[0:-1] - data[1:]).reshape(-1)
+    diffs = np.abs((data[0:-1] - data[1:]).reshape(-1))
 
     mean_diff = np.mean(diffs)
     std_diff = np.std(diffs)
+
     breaks = np.argwhere(diffs >= (mean_diff + dev_factor*std_diff)).reshape(-1) + 1
 
+    if breaks.size == 0:
+        return data
+
     cluster_centers = np.zeros((breaks.size+1), dtype=np.float32)
+
     for i in range(0, breaks.size + 1):
 
         if i == 0:

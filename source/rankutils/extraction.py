@@ -9,7 +9,8 @@ from rankutils.features import *
 extractor_map = dict(dct=rank_features_kDCT,
                      dct_shift=rank_features_shiftDCT,
                      deltaik=rank_features_deltaik,
-                     deltaik_c=rank_features_circ_deltaik)
+                     deltaik_c=rank_features_circ_deltaik,
+                     cluster_diff=rank_features_cluster_diff)
 
 
 def extract_rank_features(rank, extraction_list, ci):
@@ -62,12 +63,9 @@ def create_extraction_list(feat_cfg):
             for key in feat_cfg[sect]:
 
                 if key == 'i' or key == 'k' or key == "dct_type":
-                    try:
-                        sect_map[key] = feat_cfg[sect].getint(key)
-                    except ValueError as ve:
-                        sect_map[key] = -1
+                    sect_map[key] = feat_cfg.getint(sect, key, fallback=-1)
                 if key == 'notop':
-                    sect_map[key] = feat_cfg[sect].getboolean(key)
+                    sect_map[key] = feat_cfg.getboolean(sect, key, fallback=False)
 
     return extraction_list
 

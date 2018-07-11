@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import sys, os
-import ipdb as pdb
 
 import numpy as np
 from sklearn.metrics import confusion_matrix
@@ -52,10 +51,8 @@ def gen_baseline_max_nacc(gt):
         #print("i:", i)
         #print("tst: ", tst)
         #print("gt : ", gt)
-        try:
-            nacc = get_norm_acc(gt, tst)
-        except IndexError:
-            pdb.set_trace()
+
+        nacc = get_norm_acc(gt, tst)
         #print("nacc = {0:0.3f} | best = {1:0.3f}".format(nacc, best))
         if nacc > best:
             res[:i] = 1

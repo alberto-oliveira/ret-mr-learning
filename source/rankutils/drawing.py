@@ -9,6 +9,26 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
+from sklearn.preprocessing import MinMaxScaler
+
+
+def colors_from_cmap(cmap_name, values, lower=0, upper=1):
+
+    if lower >= upper:
+        raise ValueError("minv should be less than maxv")
+
+    if lower < 0:
+        lower = 0
+    if upper > 1:
+        upper = 1
+
+    cmap = plt.get_cmap(cmap_name)
+    mms = MinMaxScaler((lower, upper))
+    tvalues = mms.fit_transform(values.reshape(-1, 1)).reshape(-1)
+
+    clist = [cmap(v) for v in tvalues]
+
+    return clist
 
 # author='scikit-learn'
 def plot_confusion_matrix(ax, cm, classes,
@@ -47,7 +67,7 @@ def plot_confusion_matrix(ax, cm, classes,
     ax.set_xlabel('Predicted {0:s}'.format(label))
 
 # author='matplotlib'
-def heatmap(data, row_labels, col_labels, ax=None, label="Label", title="", **kwargs):
+def heatmap(data, row_labels, col_labels, ax=None, gridwidth=3.0, cbarlabel="", title="", cbar_kw={}, **kwargs):
     """
     Create a heatmap from a numpy array and two lists of labels.
 
@@ -74,18 +94,18 @@ def heatmap(data, row_labels, col_labels, ax=None, label="Label", title="", **kw
     im = ax.imshow(data, **kwargs)
 
     # Create colorbar
-    #cbar = ax.figure.colorbar(im, **cbar_kw)
-    #cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
+    cbar = ax.figure.colorbar(im, **cbar_kw)
+    cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom", fontdict=dict(fontsize=14))
 
-    ax.set_title(title, fontdict=dict(fontsize=10))
+    ax.set_title(title, fontdict=dict(fontsize=20))
 
     # We want to show all ticks...
     ax.set_xticks(np.arange(data.shape[1]))
     ax.set_yticks(np.arange(data.shape[0]))
 
     # ... and label them with the respective list entries.
-    ax.set_xticklabels(col_labels, fontdict=dict(fontsize=6))
-    ax.set_yticklabels(row_labels, fontdict=dict(fontsize=6))
+    ax.set_xticklabels(col_labels, fontdict=dict(fontsize=14))
+    ax.set_yticklabels(row_labels, fontdict=dict(fontsize=14))
 
 
     # Let the horizontal axes labeling appear on top.
@@ -93,22 +113,22 @@ def heatmap(data, row_labels, col_labels, ax=None, label="Label", title="", **kw
                    labeltop=False, labelbottom=True)
 
     # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=-30, ha="left",
+    plt.setp(ax.get_xticklabels(), rotation=-45, ha="left",
              rotation_mode="anchor")
 
     # Turn spines off and create white grid.
     for edge, spine in ax.spines.items():
         spine.set_visible(False)
 
-    ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
+    #ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
     ax.set_xlim(-0.45, data.shape[1] + 1 - .45)
-    ax.set_xlabel("Predicted {0:s}".format(label), fontdict=dict(fontsize=8))
+    #ax.set_xlabel("Predicted {0:s}".format(label), fontdict=dict(fontsize=8))
 
     ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
-    ax.set_xlim(-0.45, data.shape[0] + 1 - .45)
-    ax.set_ylabel("True {0:s}".format(label), fontdict=dict(fontsize=8))
+    #ax.set_ylim(-0.45, data.shape[0] + 1 - .45)
+    #ax.set_ylabel("True {0:s}".format(label), fontdict=dict(fontsize=8))
 
-    ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
+    ax.grid(which="minor", color="w", linestyle='-', linewidth=gridwidth)
     ax.tick_params(which="minor", bottom=False, left=False)
 
     return im
@@ -166,5 +186,3 @@ def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
             texts.append(text)
 
     return texts
-
-def plot_rank()

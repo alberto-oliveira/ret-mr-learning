@@ -144,73 +144,6 @@ class ExperimentManager:
                     np.save(outfile, bslarray)
 
     # Deprecated
-    def run_irp_labeling(self, k, fn):
-
-        for dataset in self.__expmap:
-            for descnum in self.__expmap[dataset]:
-                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
-
-                print("Running labeling on", dataset, " -- descriptor", descnum)
-
-                gtdir = self.__pathcfg["groundtruth"][dkey]
-                lbldir = self.__pathcfg["label"][dkey] + "rel-prediction/"
-                rkdir = self.__pathcfg["rank"][dkey]
-
-                for f in range(fn):
-
-                    rkflist = os.listdir(rkdir + "fold_{0:d}/".format(f))
-                    rkflist.sort()
-
-                    outfile = "{0:s}{1:s}_desc{2:d}_f{3:03d}_top{4:d}_irp_lbls".format(lbldir, dataset, descnum, f, k)
-
-                    lbllist = []
-
-                    for rkf in rkflist:
-                        aux = "{0:s}/*{1:s}*".format(gtdir, os.path.splitext(rkf)[0])
-                        #print("fold", f, "-> ",os.path.splitext(rkf)[0])
-                        gtf = glob.glob(aux)[0]
-                        #print("          ", gtf)
-
-                        lbllist.append(rp_labeling(gtf, k))
-
-                    safe_create_dir(lbldir)
-                    lblarray = np.vstack(lbllist)
-                    np.save(outfile, lblarray)
-
-    # Deprecated
-    def run_rpp_labeling(self, k, fn):
-
-        for dataset in self.__expmap:
-            for descnum in self.__expmap[dataset]:
-                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
-
-                print("Running labeling on", dataset, " -- descriptor", descnum)
-
-                gtdir = pathcfg["groundtruth"][dkey]
-                lbldir = pathcfg["label"][dkey]
-                rkdir = pathcfg["rank"][dkey]
-
-                for f in range(fn):
-
-                    rkflist = os.listdir(rkdir + "fold_{0:d}/".format(f))
-                    rkflist.sort()
-
-                    outfile = "{0:s}{1:s}_desc{2:d}_f{3:03d}_top{4:d}_labels".format(lbldir, dataset, descnum, f, k)
-
-                    lbllist = []
-
-                    for rkf in rkflist:
-                        aux = "{0:s}/*{1:s}*".format(gtdir, os.path.splitext(rkf)[0])
-                        # print("fold", f, "-> ",os.path.splitext(rkf)[0])
-                        gtf = glob.glob(aux)[0]
-                        # print("          ", gtf)
-
-                        lbllist.append(pp_labeling(gtf, k))
-
-                    safe_create_dir(lbldir)
-                    lblarray = np.vstack(lbllist)
-                    np.save(outfile, lblarray)
-
     def run_label_conversion(self, l, h):
 
         for dataset in self.__expmap:
@@ -455,8 +388,6 @@ class ExperimentManager:
         cname = expcfg['IRP']['classifier']
         k = expcfg['DEFAULT'].getint('topk')
 
-        predicted = []
-
         for dataset in self.__expmap:
             for descnum in self.__expmap[dataset]:
                 dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
@@ -484,8 +415,8 @@ class ExperimentManager:
                     for m in range(0, k):
                         print("      -> Classifying Rank -", m+1)
 
-                        # Getting features for position m+1. Some tricky 0-indexing stuff
-                        r_features = features["{0:d}".format(m+1)]
+                        # savez_compressed+load names arrays as arr_0, arr_1, etc.
+                        r_features = features["arr_{0:d}".format(m)]
                         r_labels = labels[:, m]
 
                         # run classification already performs proper fold division. It suffices that a list is passed
