@@ -78,6 +78,8 @@ def preprocess_ranks(dir, maxsz=1000):
     for fpath in rkpathlist:
 
         rk = read_rank(fpath, 'score')
+        if rk[0] < rk[-1]:
+            rk = np.max(rk) - rk
 
         if rk.shape[0] > maxsz:
             rklist.append(rk)
@@ -90,7 +92,7 @@ def preprocess_ranks(dir, maxsz=1000):
 
     del rklist
 
-    print("Elapsed: {0:0.3f}s".format(te-ts))
+    print("Preprocess -- Elapsed: {0:0.3f}s".format(te-ts))
 
     return rkarr
 

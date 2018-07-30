@@ -8,6 +8,7 @@ input-fv/
 condor/
 source/deprecated/
 source/notebooks/.ipynb_checkpoints/
+source/notebooks/output/
 scripts/output/
 */__pycache__/
 */*/__pycache__/

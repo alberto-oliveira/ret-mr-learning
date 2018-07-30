@@ -18,9 +18,10 @@ def run_extraction(dataset_choices, expconfig):
     pathcfg = cfgloader("path_2.cfg")
     dbparams = cfgloader("dbparams.cfg")
     expcfg = cfgloader(expconfig)
-    extractor_list = create_extraction_list(expcfg)
+    extraction_list= create_extraction_list(expcfg)
 
-    k = expcfg['DEFAULT'].getint('topk')
+    k = expcfg.getint('DEFAULT', 'topk')
+    c_num = expcfg.getint('DEFAULT', 'c_number', fallback=-1)
 
     for dataset in dataset_choices:
         for descnum in dataset_choices[dataset]:
@@ -39,70 +40,64 @@ def run_extraction(dataset_choices, expconfig):
             rkflist = glob.glob(rkdir + "*.rk")
             rkflist.sort()
 
-            outarray_map = dict()
-
-            feat_posit = [[] for _ in range(k)]
+            outfeatures_list = [[] for r in range(0, k)]
             outfile = "{0:s}{1:s}.{2:s}".format(fvdir, dkey, expcfg['DEFAULT']['expname'])  # NPZ output file
-
-            feat_rank = []
 
             for rkfpath in rkflist:  # Iterates over rank files inside fold
                 print("    |_", getbasename(rkfpath))
 
-                aux = dict(positional=[], rank=[])
-
                 rank = read_rank(rkfpath, dbparams[dkey]['scoretype'])
+
+
+                ### Clustering ###
+                # If there is a c_number parameter, then there are clustering based features
+                # Cluster once per rank
+                if c_num > 0:
+                    centers = np.sort(jenks_breaks(rank[k:], c_num-1))
+
+                    # Updates the parameters of clustering based features to include cluster
+                    # centers
+                    for featn, feattp, params in extraction_list:
+                        if featn == 'cluster_diff':
+                            params['c'] = c_num
+                            params['centers'] = centers
+
+                ##################
+
+                ### Extraction ###
+                # Per top-k extraction
                 for r in range(0, k):  # Iterates over rank positions
-                    features = extract_rank_features(rank, extractor_list, ci=r)
+                    features = extract_rank_features(rank, extraction_list, ci=r)
+                    features = np.hstack(features)
 
-                    # Some features are per-rank, others are positional (that is, for each top-k positions)
-                    # Although I recalculate per-rank feat. for each position, when concatenating for the top-k
-                    # features I need to have them only once
-                    for pos, tup in enumerate(extractor_list):
-                        if tup[1] == 'rank' and not aux['rank']:
-                            aux['rank'].append(features[pos])
-                        elif tup[1] == 'pos':
-                            aux['positional'].append(features[pos])
+                    outfeatures_list[r].append(features)
 
-                    new_feat_posit = np.hstack(features)
-                    if feat_posit[r]:
-                        assert feat_posit[r][-1].shape == new_feat_posit.shape, \
-                               "Inconsistent shapes between positional features for rank {0:d}. Previous" \
-                               " was {1:s} and latest {2:s}"\
-                               .format(r, str(feat_posit[r][-1].shape), str(new_feat_posit.shape))
+                ##################
 
-                    feat_posit[r].append(new_feat_posit)
+            for r in range(0, k):
+                outfeatures_list[r] = np.vstack(outfeatures_list[r])
 
-                if aux['positional']:
-                    aux['positional'] = np.hstack(aux['positional'])
-                if aux['rank']:
-                    aux['rank'] = np.hstack(aux['rank'])
+            np.savez_compressed(outfile, *outfeatures_list)
 
-                feat_rank.append(np.hstack([aux['positional'], aux['rank']]).reshape(1, -1))
 
-            for r in range(k):  # Iterates over rank position
-                outarray_map['{0:d}'.format(r+1)] = np.vstack(feat_posit[r])
-
-            outarray_map['r'] = np.vstack(feat_rank)
-
-            np.savez_compressed(outfile, **outarray_map)
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("dataset", help="dataset to run labeling on. If 'all', runs on all datasets and descriptors.",
+    parser.add_argument("dataset",
+                        help="dataset to run labeling on. If 'all', runs on all datasets and descriptors.",
                         type=str,
-                        choices=list(descriptor_map.keys())+["all"])
+                        choices=list(descriptor_map.keys()) + ["all"])
 
-    parser.add_argument("descnum", help="descriptor number. If the descriptor number does not exist for the dataset,"
-                        "exits with error. If all is chosen for dataset, ignores and runs for all descriptors.",
+    parser.add_argument("descnum",
+                        help="descriptor number. If the descriptor number does not exist for the dataset,"
+                             "exits with error. If all is chosen for dataset, ignores and runs for all descriptors.",
                         type=int)
 
     parser.add_argument("expconfig", help="path to experiment .cfg file",
                         type=str)
-
 
     args = parser.parse_args()
 

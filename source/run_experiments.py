@@ -22,12 +22,12 @@ def run_experiment(dataset_choices, expcfgfile, sval):
         for descnum in dataset_choices[dataset]:
             e_manager.add_to_experiment_map(dataset, descnum)
 
-    if expcfg['DEFAULT']['type'] == 'wbl':
+    if expcfg['DEFAULT']['type'] == 'stat':
         e_manager.run_weibull_mr(expcfgfile, sampling=sval)
-        e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
-    if expcfg['DEFAULT']['type'] == 'lrn':
+        #e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
+    if expcfg['DEFAULT']['type'] == 'learn':
         e_manager.run_learning_mr(expcfgfile)
-        e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
+        #e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
 
     print("--- Done ---")
     return

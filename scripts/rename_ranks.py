@@ -36,4 +36,3 @@ for key in ['oxford_desc1', 'oxford100k_desc1', 'unicamp_desc1', 'unicamp100k_de
                     #shutil.move(rkf, fulldir + newname)
 
         print("---")
-

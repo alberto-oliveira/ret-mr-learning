@@ -84,20 +84,19 @@ class ExperimentManager:
 
         return
 
-
-    def run_baselines(self, bslname, k, bsl):
+    def run_baselines(self, bsl, k, outfolder):
 
         for dataset in self.__expmap:
             for descnum in self.__expmap[dataset]:
                 dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
 
                 print(". Creating Baselines for ", dataset, " -- descriptor", descnum)
-                print(". Baseline output name: ", bslname)
+                print(". Baseline output name: ", outfolder)
 
                 rkdir = self.__pathcfg['rank'][dkey]
                 fold_idx = np.load(glob.glob(rkdir + "*folds.npy")[0])
 
-                outdir = self.__pathcfg['output'][dkey] + "{0:s}/rel-prediction/".format(bslname)
+                outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(outfolder)
                 safe_create_dir(outdir)
 
                 n, rounds = fold_idx.shape
@@ -228,23 +227,22 @@ class ExperimentManager:
 
     def run_weibull_mr(self, expconfig, sampling=-1.0, backend="matlab"):
 
-        #from ranku.weibull_r import WeibullMR_R
-        from rankutils.weibull_m import WeibullMR_M
+        from rankutils.stat_mr import StatMR
 
         expcfg = cfgloader(expconfig)
 
-        expname = expcfg['DEFAULT']['expname']
-        method = expcfg['IRP']['method']
-        opt = expcfg['IRP']['optimization']
-        notop = expcfg['DEFAULT'].getboolean('notop')
-        k = expcfg['DEFAULT'].getint('topk')
+        expname = expcfg.get('IRP', 'expname')
+        dist_name = expcfg.get('IRP', 'distribution')
+        method = expcfg.get('IRP', 'method')
+        opt = expcfg.get('IRP', 'optimization')
+        k = expcfg.getint('DEFAULT', 'topk')
 
         if method == 'fixed':
-            fran = (0.1, 0.85, 0.1)
-            zran = (0.2, 1.1, 0.2)
+            fvals = [0, 0.005, 0.05, 0.15, 0.30, 0.50, 0.75]
+            zvals = [0.80, 1.0]
         elif method == 'mixt':
-            fran = (0.2, 0.85, 0.2)
-            zran = (0.25, 1.1, 0.25)
+            fvals = [0, 0.005, 0.05, 0.15, 0.30, 0.50, 0.75]
+            zvals = [0.80, 1.0]
 
         for dataset in self.__expmap:
                 for descnum in self.__expmap[dataset]:
@@ -259,8 +257,7 @@ class ExperimentManager:
                     # Loads and preprocesses the ranks. The result is an NxM matrix, where N is the
                     # number of ranks and M is an arbitrary maximum size for the processed ranks.
                     # M is used to homogenize the size of the ranks
-                    ranks = preprocess_ranks(self.__pathcfg['rank'][dkey], self.__dbparams[dkey]['scoretype'],
-                                             maxsz=8000)
+                    ranks = preprocess_ranks(self.__pathcfg['rank'][dkey], maxsz=8000)
                     labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + '*irp*')[0])
 
                     # Consistency checkings
@@ -273,7 +270,7 @@ class ExperimentManager:
                     assert labels.shape[1] == k, "Inconsistent number of labels <{0:d}> and k <{1:d}>."\
                                                  .format(labels.shape[1], k)
 
-                    outdir = self.__pathcfg['output'][dkey] + "{0:s}/rel-prediction/".format(expname)
+                    outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(expname)
                     safe_create_dir(outdir)
 
                     for r in range(rounds):
@@ -285,18 +282,19 @@ class ExperimentManager:
 
                         # Train is fold 1 and Test is fold 0
                         TEST_X = ranks[idx_0, :]
-                        wblpath = "{0:s}weibull-{2:s}_r{1:03d}_000.wbl".format(outdir, r, method)
+                        mr_path = "{outdir:s}{distname:s}-{method:s}_r{round:03d}_000.mr".format(outdir=outdir,
+                                                                                                 distname=dist_name,
+                                                                                                 round=r,
+                                                                                                 method=method)
 
                         # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
                         try:
-                            with open(wblpath, 'rb') as inpf:
-                                wbl = pickle.load(inpf)
+                            with open(mr_path, 'rb') as inpf:
+                                stat_mr = pickle.load(inpf)
 
-                            te = -1.0
-                            ts = 0.0
 
                         except FileNotFoundError:
-                            wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=False, verbose=True)
+                            stat_mr = StatMR(dist_name=dist_name, k=k, method=method, opt_metric=opt, verbose=True)
                             TRAIN_X = ranks[idx_1, :]
                             TRAIN_y = labels[idx_1, :]
 
@@ -308,16 +306,12 @@ class ExperimentManager:
                                 TRAIN_X = TRAIN_X[sample_i, :]
                                 TRAIN_y = TRAIN_y[sample_i, :]
 
-                            #pdb.set_trace()
-                            ts = time.perf_counter()
-                            wbl.fit(TRAIN_X, TRAIN_y, f_val=fran, z_val=zran)
-                            te = time.perf_counter()
+                            stat_mr.fit(TRAIN_X, TRAIN_y, f_val=fvals, z_val=zvals)
 
                         print("     -> With [1] as training (F:{0:0.2f}, Z:{1:0.2f}): M = {2:0.3f}"
-                              .format(wbl.F, wbl.Z, wbl.opt_val))
-                        print("     -> Elapsed: {0:0.3f}s".format(te-ts))
+                              .format(stat_mr.F, stat_mr.Z, stat_mr.opt_val))
 
-                        predicted, _ = wbl.predict(TEST_X)
+                        predicted, _ = stat_mr.predict(TEST_X)
 
                         outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_irp.npy".format(outdir, dkey, r, k)
                         print("     ->", os.path.basename(outfile), "...", end="", flush=True)
@@ -325,24 +319,25 @@ class ExperimentManager:
                         np.save(outfile, predicted)
 
                         # Let's save this predictor
-                        with open(wblpath, 'wb') as outf:
-                            pickle.dump(wbl, outf)
+                        with open(mr_path, 'wb') as outf:
+                            pickle.dump(stat_mr, outf)
                         print(" Done!\n")
 
                         # Train is fold 0 and Test is fold 1
                         TEST_X = ranks[idx_1, :]
-                        wblpath = "{0:s}weibull-{2:s}_r{1:03d}_001.wbl".format(outdir, r, method)
+                        mr_path = "{outdir:s}{distname:s}-{method:s}_r{round:03d}_001.mr".format(outdir=outdir,
+                                                                                                 distname=dist_name,
+                                                                                                 round=r,
+                                                                                                 method=method)
 
                         # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
                         try:
-                            with open(wblpath, 'rb') as inpf:
-                                wbl = pickle.load(inpf)
+                            with open(mr_path, 'rb') as inpf:
+                                stat_mr = pickle.load(inpf)
 
-                            te = -1.0
-                            ts = 0.0
 
                         except FileNotFoundError:
-                            wbl = WeibullMR_M(k=k, method=method, opt_metric=opt, notop=False, verbose=True)
+                            stat_mr = StatMR(dist_name=dist_name, k=k, method=method, opt_metric=opt, verbose=True)
                             TRAIN_X = ranks[idx_0, :]
                             TRAIN_y = labels[idx_0, :]
 
@@ -357,15 +352,12 @@ class ExperimentManager:
                                 TRAIN_y = TRAIN_y[sample_i, :]
 
                             #pdb.set_trace()
-                            ts = time.perf_counter()
-                            wbl.fit(TRAIN_X, TRAIN_y, f_val=fran, z_val=zran)
-                            te = time.perf_counter()
+                            stat_mr.fit(TRAIN_X, TRAIN_y, f_val=fvals, z_val=zvals)
 
                         print("     -> With [0] as training (F:{0:0.2f}, Z:{1:0.2f}): M = {2:0.3f}"
-                              .format(wbl.F, wbl.Z, wbl.opt_val))
-                        print("     -> Elapsed: {0:0.3f}s".format(te - ts))
+                              .format(stat_mr.F, stat_mr.Z, stat_mr.opt_val))
 
-                        predicted, _ = wbl.predict(TEST_X)
+                        predicted, _ = stat_mr.predict(TEST_X)
 
                         outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
                         print("     ->", os.path.basename(outfile), "...", end="", flush=True)
@@ -373,8 +365,8 @@ class ExperimentManager:
                         np.save(outfile, predicted)
 
                         # Let's save this predictor
-                        with open(wblpath, 'wb') as outf:
-                            pickle.dump(wbl, outf)
+                        with open(mr_path, 'wb') as outf:
+                            pickle.dump(stat_mr, outf)
                         print(" Done!\n")
 
 
@@ -401,7 +393,7 @@ class ExperimentManager:
                 features = np.load(glob.glob(self.__pathcfg['feature'][dkey] + "*{0:s}*".format(expname))[0])
                 labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + "*irp*")[0])
 
-                outdir = self.__pathcfg['output'][dkey] + "{0:s}/rel-prediction/".format(expname)
+                outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(expname)
                 safe_create_dir(outdir)
 
                 for r in range(rounds):
