@@ -8,7 +8,7 @@ DESCRIPTOR?=1
 CFGDIR?="./expcfg/"
 CFGPATH?=$(CFGDIR)$(CFGNAME)
 
-extraction: run_extraction.py
+extraction: run_extraction_old.py
 	python run_extraction.py $(DATASET) $(DESCRIPTOR) $(CFGPATH)
 
 experiment: run_experiments.py

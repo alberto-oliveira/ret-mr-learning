@@ -5,12 +5,13 @@ import glob
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.svm import LinearSVC
+from sklearn.svm import LinearSVC, SVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import MinMaxScaler
 
 classifier_map = dict(log=LogisticRegression,
-                      svm=LinearSVC,
+                      linearsvm=LinearSVC,
+                      svm=SVC,
                       rfor=RandomForestClassifier)
 
 def fpe_err_handler(type, flag):
@@ -21,7 +22,7 @@ def get_classifier(cname):
     cclass = classifier_map.get(cname, None)
 
     try:
-        clf = cclass()
+        clf = cclass(class_weight='balanced')
 
     except TypeError as tpe:
         print("Failure initializing classifier <{0:s}>.".format(cname))

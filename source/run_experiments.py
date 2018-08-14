@@ -9,6 +9,7 @@ from rankutils.cfgloader import cfgloader
 
 from ExperimentManager import ExperimentManager
 
+
 def run_experiment(dataset_choices, expcfgfile, sval):
 
     e_manager = ExperimentManager(pathcfg="/home/alberto/phD/projects/performance_prediction/ret-mr-learning/source/"
@@ -23,16 +24,14 @@ def run_experiment(dataset_choices, expcfgfile, sval):
             e_manager.add_to_experiment_map(dataset, descnum)
 
     if expcfg['DEFAULT']['type'] == 'stat':
-        e_manager.run_weibull_mr(expcfgfile, sampling=sval)
-        #e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
+        e_manager.run_statistical_mr(expcfgfile, sampling=sval)
     if expcfg['DEFAULT']['type'] == 'learn':
         e_manager.run_learning_mr(expcfgfile)
-        #e_manager.run_irp_to_rpp_conversion(expcfg['DEFAULT']['expname'], 2, 7)
+    if expcfg['DEFAULT']['type'] == 'stat_pos':
+        e_manager.run_stat_positional_mr(expcfgfile)
 
     print("--- Done ---")
     return
-
-
 
 
 if __name__ == "__main__":

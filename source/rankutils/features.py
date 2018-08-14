@@ -5,8 +5,28 @@ import scipy.fftpack as fft
 
 from jenkspy import jenks_breaks
 
+import ipdb as pdb
 
-def rank_features_kDCT(rank, k, dct_type, notop=False):
+
+def get_rank_feature(featalias, **ka):
+    if featalias == 'dct':
+        return rank_features_kDCT(ka['rank'], ka['topk'], ka['dct_type'])
+    elif featalias == 'dct_shift':
+        return rank_features_shiftDCT(ka['rank'], ka['i'], ka['dct_range'], ka['dct_type'])
+    elif featalias == 'deltaik':
+        return rank_features_deltaik(ka['rank'], ka['i'], ka['delta_range'])
+    elif featalias == 'deltaik_c':
+        return rank_features_circ_deltaik(ka['rank'], ka['i'], ka['delta_range'])
+    elif featalias == 'cluster_diff':
+        return rank_features_cluster_diff(ka['rank'], ka['i'], ka['topk'], ka['cluster_num'], ka['centers'])
+    elif featalias == 'emd':
+        return rank_features_density_distance(ka['densities'], ka['edges'], ka['i'], ka['distmat'])
+    elif featalias == 'query_bhatt':
+        return rank_features_density_distance_from_query(ka['q_density'], ka['q_edges'],
+                                                         ka['densities'], ka['edges'], ka['i'])
+
+
+def rank_features_kDCT(rank, k, dct_type):
     """
     Extracts DCT features from the top-k ranked scores from an input rank. The 'notop' flags points if top-k is from
     position 1 to k (notop = Fslse) or from position 2 to k+1 (notop = True).
@@ -14,16 +34,12 @@ def rank_features_kDCT(rank, k, dct_type, notop=False):
     :param rank: numpy array comprising ranked scores.
     :param k: number of top positions considered.
     :param dct_type: type of dct as per scipy.
-    :param notop: if False, top-k is from position 1 to k, if True top-k is from position 2 to k+1. Default is False.
     :return: array with DCT coefficients.
     """
 
     #print(k, dct_type, notop, sep=" --- ")
 
-    if notop:
-        topk = rank[1:k+1]
-    else:
-        topk = rank[:k]
+    topk = rank[:k]
 
     kdct = fft.dct(topk, dct_type)
 
@@ -118,3 +134,45 @@ def rank_features_cluster_diff(rank, i, k, c, centers=[]):
     fv = np.abs(rank[i] - centers)
 
     return np.array(fv)
+
+
+def rank_features_density_distance(densities, edges, i, distmat=np.array([])):
+
+    from rankutils.statistical import EMD
+
+    t = len(densities)
+    i_density = densities[i]
+    i_edges = edges[i]
+
+    if distmat.size != t*t:
+        distmat = np.zeros((t, t), dtype=np.float64) - 1
+
+    for j in range(t):
+        if j != i:
+
+            j_density = densities[j]
+            j_edges = edges[j]
+
+            if distmat[j, i] != -1:
+                distmat[i, j] = distmat[j, i]
+            else:
+                distmat[i, j] = EMD(i_density, i_edges, j_density, j_edges)
+                distmat[j, i] = distmat[i, j]
+
+    fv = np.hstack([distmat[i, 0:i], distmat[i, i+1:]])
+
+
+    return fv
+
+
+def rank_features_density_distance_from_query(q_density, q_edges, r_densities, r_edges, i):
+
+    from rankutils.statistical import Bhattacharyya_coefficients
+
+    curr_density = r_densities[i]
+    curr_edges = r_edges[i]
+
+    fv = Bhattacharyya_coefficients(q_density, q_edges, curr_density, curr_edges)
+
+    return fv
+

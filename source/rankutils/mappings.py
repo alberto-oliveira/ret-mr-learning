@@ -5,10 +5,10 @@ from collections import OrderedDict
 from rankutils.baselines import *
 
 # Maps available descriptor numbers for each dataset
-descriptor_map = OrderedDict(oxford=[1],
-                             oxford100k=[1],
-                             unicamp=[1],
-                             unicamp100k=[1],
+descriptor_map = OrderedDict(#oxford=[1],
+                             #oxford100k=[1],
+                             #unicamp=[1],
+                             #unicamp100k=[1],
                              vggfaces=[1, 2],
                              places365=[1, 2],
                              imagenet=[1])

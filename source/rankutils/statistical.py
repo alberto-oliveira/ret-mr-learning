@@ -25,6 +25,7 @@ def head_tail_break(data, t=0.4):
 
     return breaks
 
+
 def head_tail_clustering(data, t=0.4):
 
     mean_breaks = head_tail_break(data, t)
@@ -70,6 +71,93 @@ def diff_break_clustering(data, dev_factor=0, min_clusters=-1):
         cluster_centers[i] = np.median(vals)
 
     return cluster_centers
+
+
+def EMD(densa, edgesa, densb, edgesb):
+
+    from scipy.stats import wasserstein_distance
+
+    bsa = np.abs((edgesa[1] - edgesa[0]))
+    bsb = np.abs((edgesb[1] - edgesb[0]))
+
+    pa = bsa * densa
+    pb = bsb * densb
+
+    return wasserstein_distance(pa, pb)
+
+
+def Bhattacharyya_coefficients(densa, edgesa, densb, edgesb):
+
+    bsa = np.abs((edgesa[1] - edgesa[0]))
+    bsb = np.abs((edgesb[1] - edgesb[0]))
+
+    pa = bsa*densa
+    pb = bsb*densb
+
+    return np.sqrt(pa*pb)
+
+
+def ev_density_approximation(d, lowerb, upperb, bins, input_engine=None):
+
+    import matlab
+    if not input_engine:
+        import matlab.engine
+        matlab_engine = matlab.engine.start_matlab()
+    else:
+        matlab_engine = input_engine
+
+    edges = np.linspace(lowerb, upperb, bins + 1).reshape(-1)
+    aux = matlab.double(edges[:-1].tolist())
+
+    if d['name'] == 'WBL':
+        dens = np.array(matlab_engine.wblpdf(aux, d['scale'], d['shape']), dtype=np.float64).reshape(-1)
+
+    elif d['name'] == 'GEV':
+        dens = np.array(matlab_engine.gevpdf(aux, d['shape'], d['scale'], d['loc']), dtype=np.float64).reshape(-1)
+
+    if not input_engine:
+        matlab_engine.quit()
+
+    return dens, edges
+
+
+def ev_fit(data, disttype, input_engine=None):
+
+    import matlab
+    if not input_engine:
+        import matlab.engine
+        matlab_engine = matlab.engine.start_matlab()
+    else:
+        matlab_engine = input_engine
+
+    if isinstance(data, matlab.double):
+        data_m = data
+    elif isinstance(data, np.ndarray):
+        data_m = matlab.double(data[data != 0].reshape(-1).tolist())
+    elif isinstance(data, (tuple, list)):
+        data_m = matlab.double(data)
+    else:
+        raise TypeError("ev_fit() arg 1 must be a matlab.double, numpy.ndarray, list, or of floats instance.")
+
+    distb = dict(name=disttype)
+
+    if disttype == 'WBL':
+        estpar, _ = matlab_engine.wblfit(data_m, nargout=2)
+        distb['scale'] = estpar[0][0]
+        distb['shape'] = estpar[0][1]
+        distb['loc'] = 0
+
+    elif disttype == 'GEV':
+        opt = matlab_engine.statset('Display', 'off', 'MaxIter', 2000.0, 'MaxFunEval', 15000.0)
+        estpar, _ = matlab_engine.gevfit(data_m, [], opt, nargout=2)
+        distb['scale'] = estpar[0][1]
+        distb['shape'] = estpar[0][0]
+        distb['loc'] = estpar[0][2]
+
+    if not input_engine:
+        matlab_engine.quit()
+
+    return distb
 
 
 

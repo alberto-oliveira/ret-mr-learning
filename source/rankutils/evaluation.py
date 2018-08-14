@@ -20,7 +20,30 @@ from rankutils.utilities import safe_create_dir
 from rankutils.drawing import heatmap
 from rankutils.mappings import exkey_map
 
-parsecolor = lambda cstr: tuple([float(c)/255.0 for c in cstr.split(',')])
+
+def parsecolor(colorstr):
+
+    from rankutils.drawing import colors_from_cmap
+
+    components = colorstr.split(',')
+
+    if len(components) == 2:
+        cmapname = components[0]
+        cmapval = float(components[1])
+
+        color = colors_from_cmap(cmapname, cmapval)[0]
+
+    elif len(components) == 3:
+        color = tuple([float(c) / 255.0 for c in components] + [1.0])
+
+    elif len(components) == 4:
+        color = tuple([float(c) / 255.0 for c in components])
+    else:
+        raise ValueError("The \'color\' configuration parameter must be a string in the form: <colormap>,<value> or"
+                         "<r>,<g>,<b> or <r>,<g>,<b>,<a>")
+
+    return color
+
 
 
 def norm_acc(y_true, y_pred):
@@ -124,29 +147,28 @@ class Evaluator:
 
             m = dict()
             params = dict()
+            drawargs = dict()
 
             m['name'] = evalcfg[s]['name']
-            params['label'] = evalcfg[s]['label']
-            params['marker'] = evalcfg[s].get('marker', fallback='')
-            params['plot_type'] = evalcfg[s]['plot_type']
-            params['linestyle'] = evalcfg[s]['linestyle']
-
-            params['markersize'] = evalcfg[s].getint('markersize')
-            params['markeredgewidth'] = evalcfg[s].getint('markeredgewidth')
-            params['linewidth'] = evalcfg[s].getint('linewidth')
             params['add_correlation'] = evalcfg[s].getboolean('add_correlation', fallback=False)
             params['add_rpp'] = evalcfg[s].getboolean('add_rpp', fallback=False)
+            params['label'] = evalcfg[s]['label']
+            params['plot_type'] = evalcfg[s]['plot_type']
 
-            params['color'] = parsecolor(evalcfg[s]['color'])
-            try:
-                params['markerfacecolor'] = parsecolor(evalcfg[s]['markerfacecolor'])
-            except KeyError as ke:
-                params['markerfacecolor'] = params['color']
-            try:
-                params['linecolor'] = parsecolor(evalcfg[s]['linecolor'])
-            except KeyError as ke:
-                params['linecolor'] = params['color']
+            drawargs['color'] = parsecolor(evalcfg.get(s, 'color'))
+            drawargs['marker'] = evalcfg.get(s, 'marker', fallback='')
+            drawargs['linestyle'] = evalcfg.get(s, 'linestyle', fallback='-')
+            drawargs['markersize'] = evalcfg.getint(s, 'markersize', fallback=9)
+            drawargs['markeredgewidth'] = evalcfg.getint(s, 'markeredgewidth', fallback=2)
+            drawargs['linewidth'] = evalcfg.getint(s, 'linewidth', fallback=2)
+
+            if 'markerfacecolor' in evalcfg[s].keys():
+                drawargs['markerfacecolor'] = parsecolor(evalcfg.get(s, 'markerfacecolor'))
+            else:
+                drawargs['markerfacecolor'] = drawargs['color']
+
             m['params'] = params
+            m['drawargs'] = drawargs
 
             self.__data.append(m)
 
@@ -161,8 +183,8 @@ class Evaluator:
         self.__gt_irp_labels = []
 
         for r in range(rds):
-            idx_0 = np.argwhere(self.foldidx[:, r] == 0).reshape(-1)
-            idx_1 = np.argwhere(self.foldidx[:, r] == 1).reshape(-1)
+            idx_0 = np.flatnonzero(self.foldidx[:, r] == 0).reshape(-1)
+            idx_1 = np.flatnonzero(self.foldidx[:, r] == 1).reshape(-1)
 
             self.__gt_irp_labels.append(irp_lbl[idx_0, :])
             self.__gt_irp_labels.append(irp_lbl[idx_1, :])
@@ -177,19 +199,15 @@ class Evaluator:
             nm = mdata['name']
 
             irp_flist = glob.glob(self.outpath + "{0:s}/*.npy".format(nm))
-
             irp_flist.sort()
 
             mdata['irp_results'] = list(map(np.load, irp_flist))
 
             assert mdata['irp_results'], "Empty IRP Predicted Labels for method {0:s}".format(mdata['name'])
 
-    #def get_statistical_significance(self):
-
-
-
     def evaluate(self):
 
+        np.set_printoptions(linewidth=300, precision=4)
         np.seterr(divide='ignore', invalid='ignore')
         T_vals = np.arange(1, 11, 1).reshape(1, -1)
 
@@ -278,6 +296,7 @@ class Evaluator:
 
                 ###
 
+
             #for t in irp_evaluation: print(t)
             irp_evaluation = np.vstack(irp_evaluation)
             irp_evaluation_sample = np.vstack(irp_evaluation_sample)
@@ -286,6 +305,8 @@ class Evaluator:
             rpp_evaluation = np.vstack(rpp_evaluation)
             predicted_counts = np.vstack(predicted_counts)
 
+
+
             mdata['irp_evaluation'] = np.vstack([irp_evaluation, np.mean(irp_evaluation, axis=0).reshape(1, -1)])
             mdata['irp_evaluation_sample'] = np.vstack([irp_evaluation_sample,
                                                         np.mean(irp_evaluation_sample, axis=0).reshape(1, -1)])
@@ -293,7 +314,6 @@ class Evaluator:
             mdata['predicted_counts'] = np.vstack([predicted_counts, np.mean(predicted_counts, axis=0).reshape(1, -1)])
             mdata['rpp_evaluation'] = np.vstack([rpp_evaluation, np.mean(rpp_evaluation, axis=0).reshape(1, -1)])
             mdata['patk_prediction'] = patk_prediction
-
 
             #pdb.set_trace()
             np.seterr(divide='warn', invalid='warn')

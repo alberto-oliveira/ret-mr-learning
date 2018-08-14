@@ -142,90 +142,111 @@ class ExperimentManager:
 
                     np.save(outfile, bslarray)
 
-    # Deprecated
-    def run_label_conversion(self, l, h):
+        return
+
+    def run_stat_positional_mr(self, expconfig):
+
+        from rankutils.stat_mr import StatMR
+
+        expcfg = cfgloader(expconfig)
+
+        expname = expcfg.get('IRP', 'expname')
+        dist_name = expcfg.get('IRP', 'distribution')
+        step = expcfg.getint('IRP', 'positional_step')
+        k = expcfg.getint('DEFAULT', 'topk')
 
         for dataset in self.__expmap:
             for descnum in self.__expmap[dataset]:
 
                 dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
 
-                print("Converting labels from ", dataset, " -- descriptor", descnum)
+                print(". Running <Statistical-Positional MR - IRP> for ", dataset, " -- descriptor", descnum)
+                print(". Experiment name: ", expname)
 
-                indir = self.__pathcfg['label'][dkey]
+                fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
+                n, rounds = fold_idx.shape
 
-                if(os.path.isdir(indir)):
-                    inflist = glob.glob(indir + "*irp*.npy")
+                # Loads and preprocesses the ranks. The result is an NxM matrix, where N is the
+                # number of ranks and M is an arbitrary maximum size for the processed ranks.
+                # M is used to homogenize the size of the ranks
+                ranks = preprocess_ranks(self.__pathcfg['rank'][dkey], maxsz=8000)
 
-                    outdir = self.__pathcfg['label'][dkey]
-                    safe_create_dir(outdir)
+                # Consistency checks
+                assert n == ranks.shape[0], "Inconsistent number of indexes <{0:d}> and rank files <{1:d}>."\
+                                            .format(n, len(ranks.shape[0]))
 
-                    for infile in inflist:
+                outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(expname)
+                safe_create_dir(outdir)
 
-                        inarr = np.load(infile)
-                        inarr_sum = np.sum(inarr, 1)
+                for r in range(rounds):
+                    print("  -> Starting round #:", r)
 
-                        aux = []
+                    # Getting round r indexes for fold 0 and fold 1
+                    idx_0 = np.argwhere(fold_idx[:, r] == 0).reshape(-1)
+                    idx_1 = np.argwhere(fold_idx[:, r] == 1).reshape(-1)
 
-                        for i in range(l, h + 1):
-                            aux.append((inarr_sum >= i).reshape(-1, 1).astype(np.uint8))
+                    # Test is fold 0
+                    TEST_X = ranks[idx_0, :]
 
-                        outarr = np.hstack(aux)
+                    # Pre-allocating the predictions. There is a total of m predictions, each of k positions.
+                    # M is the number of ranks in the test fold.
+                    predicted = np.zeros((TEST_X.shape[0], k), dtype=np.uint8)
 
-                        parts = (os.path.basename(infile)).rsplit(".", 2)
-                        outfile = outdir + parts[0] + ".rpp_lbls.npy"
+                    for i, rk in enumerate(TEST_X):
+                        print('     |_ [Rank {number:04d}]'.format(number=i))
 
-                        print("    |_", os.path.basename(infile), "->", os.path.basename(outfile))
+                        t_vals = np.zeros(k, dtype=np.float64)
+                        tail = rk[k:]
 
-                        np.save(outfile, outarr)
-                else:
-                    print(" -> input directory <{0:s}> does not exist!".format(indir))
+                        for pos in range(k):
 
-                print("---")
+                            tail = np.unique(tail[pos*step:])[::-1]
+                            tail = tail[tail != -1]
 
+                            dparams = StatMR.ev_estim_matlab(tail, dist_name)
+                            t_vals[pos] = StatMR.ev_quant_matlab(dist_name, 0.99999999, scale=dparams['scale'],
+                                                                 shape=dparams['shape'], loc=dparams['loc'])
 
-    def run_irp_to_rpp_conversion(self, expfoldername, l, h):
+                        predicted[i] = rk[0:k] > t_vals
 
-        for dataset in self.__expmap:
-            for descnum in self.__expmap[dataset]:
-                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
+                    outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    print("     ->", os.path.basename(outfile), "...", end="", flush=True)
 
-                print("Running IRP to RPP conversion on", dataset, " -- descriptor", descnum)
-                print(" -> exp:", expfoldername)
-
-                indir = self.__pathcfg['output'][dkey] + expfoldername + "/rel-prediction/"
-
-                if(os.path.isdir(indir)):
-                    inflist = glob.glob(indir + "*.npy")
-
-                    outdir = self.__pathcfg['output'][dkey] + expfoldername + "/perf-prediction/"
-                    safe_create_dir(outdir)
-
-                    for infile in inflist:
-
-                        inarr = np.load(infile)
-                        inarr_sum = np.sum(inarr, 1)
-
-                        aux = []
-
-                        for i in range(l, h+1):
-                            aux.append((inarr_sum >= i).reshape(-1, 1).astype(np.uint8))
-
-                        outarr = np.hstack(aux)
-
-                        parts = (os.path.basename(infile)).rsplit("_", 1)
-                        outfile = outdir + parts[0] + "_rpp.npy"
-
-                        print("    |_", os.path.basename(infile), "->", os.path.basename(outfile))
-
-                        np.save(outfile, outarr)
-                else:
-                    print(" -> input directory <{0:s}> does not exist!".format(indir))
-
-                print("---")
+                    np.save(outfile, predicted)
 
 
-    def run_weibull_mr(self, expconfig, sampling=-1.0, backend="matlab"):
+                    # Test is fold 1
+                    TEST_X = ranks[idx_1, :]
+
+                    # Pre-allocating the predictions. There is a total of m predictions, each of k positions.
+                    # M is the number of ranks in the test fold.
+                    predicted = np.zeros((TEST_X.shape[0], k), dtype=np.uint8)
+
+                    for i, rk in enumerate(TEST_X):
+                        print('     |_ [Rank {number:04d}]'.format(number=i))
+
+                        t_vals = np.zeros(k, dtype=np.float64)
+                        tail = rk[k:]
+
+                        for pos in range(k):
+
+                            tail = np.unique(tail[pos*step:])[::-1]
+                            tail = tail[tail != -1]
+
+                            dparams = StatMR.ev_estim_matlab(tail, dist_name)
+                            t_vals[pos] = StatMR.ev_quant_matlab(dist_name, 0.99999999, scale=dparams['scale'],
+                                                                 shape=dparams['shape'], loc=dparams['loc'])
+
+                        predicted[i] = rk[0:k] > t_vals
+
+                    outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    print("     ->", os.path.basename(outfile), "...", end="", flush=True)
+
+                    np.save(outfile, predicted)
+
+        return
+
+    def run_statistical_mr(self, expconfig, sampling=-1.0):
 
         from rankutils.stat_mr import StatMR
 
@@ -245,132 +266,130 @@ class ExperimentManager:
             zvals = [0.80, 1.0]
 
         for dataset in self.__expmap:
-                for descnum in self.__expmap[dataset]:
-                    dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
+            for descnum in self.__expmap[dataset]:
+                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
 
-                    print(". Running <Weibull MR - IRP> for ", dataset, " -- descriptor", descnum)
-                    print(". Experiment name: ", expname)
+                print(". Running <Statistical MR - IRP> for ", dataset, " -- descriptor", descnum)
+                print(". Experiment name: ", expname)
 
-                    fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
-                    n, rounds = fold_idx.shape
+                fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
+                n, rounds = fold_idx.shape
 
-                    # Loads and preprocesses the ranks. The result is an NxM matrix, where N is the
-                    # number of ranks and M is an arbitrary maximum size for the processed ranks.
-                    # M is used to homogenize the size of the ranks
-                    ranks = preprocess_ranks(self.__pathcfg['rank'][dkey], maxsz=8000)
-                    labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + '*irp*')[0])
+                # Loads and preprocesses the ranks. The result is an NxM matrix, where N is the
+                # number of ranks and M is an arbitrary maximum size for the processed ranks.
+                # M is used to homogenize the size of the ranks
+                ranks = preprocess_ranks(self.__pathcfg['rank'][dkey], maxsz=8000)
+                labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + '*irp*')[0])
 
-                    # Consistency checkings
-                    assert n == ranks.shape[0], "Inconsistent number of indexes <{0:d}> and rank files <{1:d}>."\
-                                                .format(n, len(ranks.shape[0]))
+                # Consistency checks
+                assert n == ranks.shape[0], "Inconsistent number of indexes <{0:d}> and rank files <{1:d}>."\
+                                            .format(n, len(ranks.shape[0]))
 
-                    assert n == labels.shape[0], "Inconsistent number of indexes <{0:d}> and labels <{1:d}>."\
-                                                 .format(n, labels.shape[0])
+                assert n == labels.shape[0], "Inconsistent number of indexes <{0:d}> and labels <{1:d}>."\
+                                             .format(n, labels.shape[0])
 
-                    assert labels.shape[1] == k, "Inconsistent number of labels <{0:d}> and k <{1:d}>."\
-                                                 .format(labels.shape[1], k)
+                assert labels.shape[1] == k, "Inconsistent number of labels <{0:d}> and k <{1:d}>."\
+                                             .format(labels.shape[1], k)
 
-                    outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(expname)
-                    safe_create_dir(outdir)
+                outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(expname)
+                safe_create_dir(outdir)
 
-                    for r in range(rounds):
-                        print("  -> Starting round #:", r)
+                for r in range(rounds):
+                    print("  -> Starting round #:", r)
 
-                        # Getting round r indexes for fold 0 and fold 1
-                        idx_0 = np.argwhere(fold_idx[:, r] == 0).reshape(-1)
-                        idx_1 = np.argwhere(fold_idx[:, r] == 1).reshape(-1)
+                    # Getting round r indexes for fold 0 and fold 1
+                    idx_0 = np.argwhere(fold_idx[:, r] == 0).reshape(-1)
+                    idx_1 = np.argwhere(fold_idx[:, r] == 1).reshape(-1)
 
-                        # Train is fold 1 and Test is fold 0
-                        TEST_X = ranks[idx_0, :]
-                        mr_path = "{outdir:s}{distname:s}-{method:s}_r{round:03d}_000.mr".format(outdir=outdir,
-                                                                                                 distname=dist_name,
-                                                                                                 round=r,
-                                                                                                 method=method)
+                    # Train is fold 1 and Test is fold 0
+                    TEST_X = ranks[idx_0, :]
+                    mr_path = "{outdir:s}{distname:s}-{method:s}_r{round:03d}_000.mr".format(outdir=outdir,
+                                                                                             distname=dist_name,
+                                                                                             round=r,
+                                                                                             method=method)
 
-                        # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
-                        try:
-                            with open(mr_path, 'rb') as inpf:
-                                stat_mr = pickle.load(inpf)
-
-
-                        except FileNotFoundError:
-                            stat_mr = StatMR(dist_name=dist_name, k=k, method=method, opt_metric=opt, verbose=True)
-                            TRAIN_X = ranks[idx_1, :]
-                            TRAIN_y = labels[idx_1, :]
-
-                            if sampling > 0.0 and TRAIN_X.shape[0] >= 1000:
-                                sample_i = np.arange(0, TRAIN_X.shape[0])
-                                np.random.shuffle(sample_i)
-                                sample_i = sample_i[:np.int(sampling*TRAIN_X.shape[0])]
-
-                                TRAIN_X = TRAIN_X[sample_i, :]
-                                TRAIN_y = TRAIN_y[sample_i, :]
-
-                            stat_mr.fit(TRAIN_X, TRAIN_y, f_val=fvals, z_val=zvals)
-
-                        print("     -> With [1] as training (F:{0:0.2f}, Z:{1:0.2f}): M = {2:0.3f}"
-                              .format(stat_mr.F, stat_mr.Z, stat_mr.opt_val))
-
-                        predicted, _ = stat_mr.predict(TEST_X)
-
-                        outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_irp.npy".format(outdir, dkey, r, k)
-                        print("     ->", os.path.basename(outfile), "...", end="", flush=True)
-
-                        np.save(outfile, predicted)
-
-                        # Let's save this predictor
-                        with open(mr_path, 'wb') as outf:
-                            pickle.dump(stat_mr, outf)
-                        print(" Done!\n")
-
-                        # Train is fold 0 and Test is fold 1
-                        TEST_X = ranks[idx_1, :]
-                        mr_path = "{outdir:s}{distname:s}-{method:s}_r{round:03d}_001.mr".format(outdir=outdir,
-                                                                                                 distname=dist_name,
-                                                                                                 round=r,
-                                                                                                 method=method)
-
-                        # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
-                        try:
-                            with open(mr_path, 'rb') as inpf:
-                                stat_mr = pickle.load(inpf)
+                    # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
+                    try:
+                        with open(mr_path, 'rb') as inpf:
+                            stat_mr = pickle.load(inpf)
 
 
-                        except FileNotFoundError:
-                            stat_mr = StatMR(dist_name=dist_name, k=k, method=method, opt_metric=opt, verbose=True)
-                            TRAIN_X = ranks[idx_0, :]
-                            TRAIN_y = labels[idx_0, :]
+                    except FileNotFoundError:
+                        stat_mr = StatMR(dist_name=dist_name, k=k, method=method, opt_metric=opt, verbose=True)
+                        TRAIN_X = ranks[idx_1, :]
+                        TRAIN_y = labels[idx_1, :]
 
-                            # SAMPLING SHOULD GO HERE #
+                        if sampling > 0.0 and TRAIN_X.shape[0] >= 1000:
+                            sample_i = np.arange(0, TRAIN_X.shape[0])
+                            np.random.shuffle(sample_i)
+                            sample_i = sample_i[:np.int(sampling*TRAIN_X.shape[0])]
 
-                            if sampling > 0.0 and TRAIN_X.shape[0] >= 1000:
-                                sample_i = np.arange(0, TRAIN_X.shape[0])
-                                np.random.shuffle(sample_i)
-                                sample_i = sample_i[:np.int(sampling*TRAIN_X.shape[0])]
+                            TRAIN_X = TRAIN_X[sample_i, :]
+                            TRAIN_y = TRAIN_y[sample_i, :]
 
-                                TRAIN_X = TRAIN_X[sample_i, :]
-                                TRAIN_y = TRAIN_y[sample_i, :]
+                        stat_mr.fit(TRAIN_X, TRAIN_y, f_val=fvals, z_val=zvals)
 
-                            #pdb.set_trace()
-                            stat_mr.fit(TRAIN_X, TRAIN_y, f_val=fvals, z_val=zvals)
+                    print("     -> With [1] as training (F:{0:0.2f}, Z:{1:0.2f}): M = {2:0.3f}"
+                          .format(stat_mr.F, stat_mr.Z, stat_mr.opt_val))
 
-                        print("     -> With [0] as training (F:{0:0.2f}, Z:{1:0.2f}): M = {2:0.3f}"
-                              .format(stat_mr.F, stat_mr.Z, stat_mr.opt_val))
+                    predicted, _ = stat_mr.predict(TEST_X)
 
-                        predicted, _ = stat_mr.predict(TEST_X)
+                    outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    print("     ->", os.path.basename(outfile), "...", end="", flush=True)
 
-                        outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
-                        print("     ->", os.path.basename(outfile), "...", end="", flush=True)
+                    np.save(outfile, predicted)
 
-                        np.save(outfile, predicted)
+                    # Let's save this predictor
+                    with open(mr_path, 'wb') as outf:
+                        pickle.dump(stat_mr, outf)
+                    print(" Done!\n")
 
-                        # Let's save this predictor
-                        with open(mr_path, 'wb') as outf:
-                            pickle.dump(stat_mr, outf)
-                        print(" Done!\n")
+                    # Train is fold 0 and Test is fold 1
+                    TEST_X = ranks[idx_1, :]
+                    mr_path = "{outdir:s}{distname:s}-{method:s}_r{round:03d}_001.mr".format(outdir=outdir,
+                                                                                             distname=dist_name,
+                                                                                             round=r,
+                                                                                             method=method)
+
+                    # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
+                    try:
+                        with open(mr_path, 'rb') as inpf:
+                            stat_mr = pickle.load(inpf)
 
 
+                    except FileNotFoundError:
+                        stat_mr = StatMR(dist_name=dist_name, k=k, method=method, opt_metric=opt, verbose=True)
+                        TRAIN_X = ranks[idx_0, :]
+                        TRAIN_y = labels[idx_0, :]
 
+                        # SAMPLING SHOULD GO HERE #
+
+                        if sampling > 0.0 and TRAIN_X.shape[0] >= 1000:
+                            sample_i = np.arange(0, TRAIN_X.shape[0])
+                            np.random.shuffle(sample_i)
+                            sample_i = sample_i[:np.int(sampling*TRAIN_X.shape[0])]
+
+                            TRAIN_X = TRAIN_X[sample_i, :]
+                            TRAIN_y = TRAIN_y[sample_i, :]
+
+                        stat_mr.fit(TRAIN_X, TRAIN_y, f_val=fvals, z_val=zvals)
+
+                    print("     -> With [0] as training (F:{0:0.2f}, Z:{1:0.2f}): M = {2:0.3f}"
+                          .format(stat_mr.F, stat_mr.Z, stat_mr.opt_val))
+
+                    predicted, _ = stat_mr.predict(TEST_X)
+
+                    outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    print("     ->", os.path.basename(outfile), "...", end="", flush=True)
+
+                    np.save(outfile, predicted)
+
+                    # Let's save this predictor
+                    with open(mr_path, 'wb') as outf:
+                        pickle.dump(stat_mr, outf)
+                    print(" Done!\n")
+
+        return
 
     def run_learning_mr(self, expconfig):
 
@@ -398,8 +417,8 @@ class ExperimentManager:
 
                 for r in range(rounds):
                     print("  -> Starting round #:", r)
-                    idx_0 = np.argwhere(fold_idx[:, r] == 0).reshape(-1)
-                    idx_1 = np.argwhere(fold_idx[:, r] == 1).reshape(-1)
+                    idx_0 = np.flatnonzero(fold_idx[:, r] == 0).reshape(-1)
+                    idx_1 = np.flatnonzero(fold_idx[:, r] == 1).reshape(-1)
 
                     # Contains the per-rank predictions, considering both folds once as train/test
                     predicted = [[], []]
@@ -413,7 +432,10 @@ class ExperimentManager:
 
                         # run classification already performs proper fold division. It suffices that a list is passed
                         # whereby each position contains the features according to the fold
-                        r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, False)
+                        if cname == 'svm' or cname == 'linearsvm':
+                            r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, True)
+                        else:
+                            r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, True)
 
                         # Fold 0 is test
                         predicted[0].append(r_predicted[0])
@@ -439,12 +461,4 @@ class ExperimentManager:
                     outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
                     np.save(outfile, predicted[1])
 
-
         return
-
-
-
-
-
-
-

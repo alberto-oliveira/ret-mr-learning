@@ -67,6 +67,7 @@ def get_rank_colname(rank):
 
     return colname
 
+
 def preprocess_ranks(dir, maxsz=1000):
 
 
@@ -95,6 +96,26 @@ def preprocess_ranks(dir, maxsz=1000):
     print("Preprocess -- Elapsed: {0:0.3f}s".format(te-ts))
 
     return rkarr
+
+
+def get_index(array_a, array_b):
+    """
+    Get the positions of array_b elements in array_a. Both need to be numpy.ndarrays and have the same size.
+
+    :param array_a: numpy.ndarray where the search is performed.
+    :param array_b: numpy.ndarray with the elements to be searched for
+    :return:
+    """
+
+    found = []
+
+    for val in array_b:
+        try:
+            found.append(np.flatnonzero(array_a == val)[0])
+        except IndexError:
+            pass
+
+    return np.array(found, dtype=np.intp)
 
 
 def get_img_name(imgpath):

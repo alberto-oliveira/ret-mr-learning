@@ -10,6 +10,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import MinMaxScaler
+#import ipdb as pdb
 
 
 def colors_from_cmap(cmap_name, values, lower=0, upper=1):
@@ -22,9 +23,19 @@ def colors_from_cmap(cmap_name, values, lower=0, upper=1):
     if upper > 1:
         upper = 1
 
+    if not isinstance(values, np.ndarray):
+        aux = np.array([values])
+    else:
+        aux = values
+
     cmap = plt.get_cmap(cmap_name)
-    mms = MinMaxScaler((lower, upper))
-    tvalues = mms.fit_transform(values.reshape(-1, 1)).reshape(-1)
+
+    # Only scales if a vector of colors is given
+    if aux.size > 1:
+        mms = MinMaxScaler((lower, upper))
+        tvalues = mms.fit_transform(aux.reshape(-1, 1)).reshape(-1)
+    else:
+        tvalues = aux
 
     clist = [cmap(v) for v in tvalues]
 
@@ -94,8 +105,9 @@ def heatmap(data, row_labels, col_labels, ax=None, gridwidth=3.0, cbarlabel="", 
     im = ax.imshow(data, **kwargs)
 
     # Create colorbar
-    cbar = ax.figure.colorbar(im, **cbar_kw)
-    cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom", fontdict=dict(fontsize=14))
+    if cbarlabel is not None:
+        cbar = ax.figure.colorbar(im, **cbar_kw)
+        cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom", fontdict=dict(fontsize=14))
 
     ax.set_title(title, fontdict=dict(fontsize=20))
 
