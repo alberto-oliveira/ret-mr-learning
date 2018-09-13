@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
 import numpy as np
@@ -10,28 +11,30 @@ import ipdb as pdb
 
 def get_rank_feature(featalias, **ka):
     if featalias == 'dct':
-        return rank_features_kDCT(ka['rank'], ka['topk'], ka['dct_type'])
+        return rank_features_kDCT(ka['scores'], ka['topk'], ka['dct_type'])
     elif featalias == 'dct_shift':
-        return rank_features_shiftDCT(ka['rank'], ka['i'], ka['dct_range'], ka['dct_type'])
+        return rank_features_shiftDCT(ka['scores'], ka['i'], ka['dct_range'], ka['dct_type'])
     elif featalias == 'deltaik':
-        return rank_features_deltaik(ka['rank'], ka['i'], ka['delta_range'])
+        return rank_features_deltaik(ka['scores'], ka['i'], ka['delta_range'])
     elif featalias == 'deltaik_c':
-        return rank_features_circ_deltaik(ka['rank'], ka['i'], ka['delta_range'])
+        return rank_features_circ_deltaik(ka['scores'], ka['i'], ka['delta_range'])
     elif featalias == 'cluster_diff':
-        return rank_features_cluster_diff(ka['rank'], ka['i'], ka['topk'], ka['cluster_num'], ka['centers'])
+        return rank_features_cluster_diff(ka['scores'], ka['i'], ka['topk'], ka['cluster_num'], ka['centers'])
     elif featalias == 'emd':
         return rank_features_density_distance(ka['densities'], ka['edges'], ka['i'], ka['distmat'])
     elif featalias == 'query_bhatt':
         return rank_features_density_distance_from_query(ka['q_density'], ka['q_edges'],
                                                          ka['densities'], ka['edges'], ka['i'])
+    else:
+        raise ValueError("<{0:s}> is not a valid feature alias. ".format(featalias))
 
 
-def rank_features_kDCT(rank, k, dct_type):
+def rank_features_kDCT(scores, k, dct_type):
     """
     Extracts DCT features from the top-k ranked scores from an input rank. The 'notop' flags points if top-k is from
     position 1 to k (notop = Fslse) or from position 2 to k+1 (notop = True).
 
-    :param rank: numpy array comprising ranked scores.
+    :param scores: numpy array comprising ranked scores.
     :param k: number of top positions considered.
     :param dct_type: type of dct as per scipy.
     :return: array with DCT coefficients.
@@ -39,18 +42,18 @@ def rank_features_kDCT(rank, k, dct_type):
 
     #print(k, dct_type, notop, sep=" --- ")
 
-    topk = rank[:k]
+    topk = scores[:k]
 
     kdct = fft.dct(topk, dct_type)
 
     return kdct
 
 
-def rank_features_shiftDCT(rank, i, k, dct_type):
+def rank_features_shiftDCT(scores, i, k, dct_type):
     """
-    Extracts DCT features from the i-th to (i+k)-th position of the rank.
+    Extracts DCT features from the i-th to (i+k)-th position of the scores.
 
-    :param rank: numpy array comprising ranked scores.
+    :param scores: numpy array comprising ranked scores.
     :param i: initial position
     :param k: number of positions
     :param dct_type: type of dct as per scipy.
@@ -59,18 +62,18 @@ def rank_features_shiftDCT(rank, i, k, dct_type):
 
     #print(k, dct_type, notop, sep=" --- ")
 
-    kdct = fft.dct(rank[i:i+k], dct_type)
+    kdct = fft.dct(scores[i:i + k], dct_type)
 
     return kdct
 
 
-def rank_features_deltaik(rank, i, k):
+def rank_features_deltaik(scores, i, k):
     """
-    Extracts the Delta i-k features from a rank. Delta_i-k is defined as <(si - si+1), (si - si+2), ..., (si - sk)>, for
+    Extracts the Delta i-k features from a scores. Delta_i-k is defined as <(si - si+1), (si - si+2), ..., (si - sk)>, for
     ranked scores {s1, s2, ..., si, ..., sk, ..., sn}
 
 
-    :param rank: numpy array with ranked scores
+    :param scores: numpy array with ranked scores
     :param i: integer defining anchor position i
     :param k: integer defining final position k
     :return: numpy array of features
@@ -78,23 +81,23 @@ def rank_features_deltaik(rank, i, k):
 
     fv = []
 
-    if k >= rank.shape[0]:
-        k = rank.shape[0]-1
+    if k >= scores.shape[0]:
+        k = scores.shape[0] - 1
 
     for p in range(i+1, k+1):
 
-        diff = rank[i] - rank[p]
+        diff = scores[i] - scores[p]
         fv.append(diff)
 
     return np.array(fv)
 
 
-def rank_features_circ_deltaik(rank, i, k):
+def rank_features_circ_deltaik(scores, i, k):
     """
-    Extracts the circular Delta i-k features from a rank. circ_Delta_i-k_ is defined as <(si - s1), (si - s2), ...,
+    Extracts the circular Delta i-k features from a scores. circ_Delta_i-k_ is defined as <(si - s1), (si - s2), ...,
     (si - si-1), (si - si+1), ..., (si - sk)>, for ranked scores {s1, s2, ..., si, ..., sk, ..., sn}
 
-    :param rank: numpy array with ranked scores
+    :param scores: numpy array with ranked scores
     :param i: integer defining anchor position i
     :param k: integer defining final position k
     :return: numpy array of features
@@ -102,26 +105,26 @@ def rank_features_circ_deltaik(rank, i, k):
 
     fv = []
 
-    if k >= rank.shape[0]:
-        k = rank.shape[0]-1
+    if k >= scores.shape[0]:
+        k = scores.shape[0] - 1
 
     for p in range(0, k+1):
 
         if p != i:
-            diff = rank[i] - rank[p]
+            diff = scores[i] - scores[p]
             fv.append(diff)
 
     return np.array(fv)
 
 
-def rank_features_cluster_diff(rank, i, k, c, centers=[]):
+def rank_features_cluster_diff(scores, i, k, c, centers=[]):
     """
     Extracts the Cluster difference features from a rank. Cluster difference features for position i are defined as:
     <|si - m0|, |si - m1|, |si - m2|, ..., |si - mc|>, where {m0, m1, ..., mc} are m clusters found by jenks-breaks
     optimization on the scores of the tail, defined as {sk+1, sk+2, ...., sn}
 
 
-    :param rank: numpy array with ranked scores
+    :param scores: numpy array with ranked scores
     :param i: integer defining anchor position i
     :param k: integer defining initial position of the tail k
     :param c: number of clusters to be found by jenks breaks optimization
@@ -129,9 +132,9 @@ def rank_features_cluster_diff(rank, i, k, c, centers=[]):
     """
 
     if centers == []:
-        centers = np.sort(np.array(jenks_breaks(rank[k:].reshape(-1), c - 1)))
+        centers = np.sort(np.array(jenks_breaks(scores[k:].reshape(-1), c - 1)))
 
-    fv = np.abs(rank[i] - centers)
+    fv = np.abs(scores[i] - centers)
 
     return np.array(fv)
 

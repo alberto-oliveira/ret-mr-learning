@@ -7,8 +7,10 @@ DATASET?=all
 DESCRIPTOR?=1
 CFGDIR?="./expcfg/"
 CFGPATH?=$(CFGDIR)$(CFGNAME)
+OUTROOT?="../output/2x5-fold/"
 
-extraction: run_extraction_old.py
+
+extraction: run_extraction.py
 	python run_extraction.py $(DATASET) $(DESCRIPTOR) $(CFGPATH)
 
 experiment: run_experiments.py
@@ -22,7 +24,7 @@ baseline: create_baselines.py
 	python create_baselines.py $(DATASET) $(DESCRIPTOR) $(BSLNAME) $(OUTFOLDER)
 
 
-.PHONY: view list
+.PHONY: view list clean
 
 view:
 		@cat $(CFGPATH)

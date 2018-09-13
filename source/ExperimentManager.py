@@ -12,6 +12,7 @@ from rankutils.cfgloader import *
 from rankutils.utilities import safe_create_dir, preprocess_ranks
 from rankutils.mappings import descriptor_map, baseline_map
 from rankutils.classification import *
+from rankutils.postprocessing import label_frequency_mod
 
 import time
 
@@ -412,7 +413,8 @@ class ExperimentManager:
                 features = np.load(glob.glob(self.__pathcfg['feature'][dkey] + "*{0:s}*".format(expname))[0])
                 labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + "*irp*")[0])
 
-                outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(expname)
+                outdir = self.__pathcfg['output'][dkey] + "{expname:s}.{cfname:s}/".format(expname=expname,
+                                                                                           cfname=cname)
                 safe_create_dir(outdir)
 
                 for r in range(rounds):
@@ -460,5 +462,140 @@ class ExperimentManager:
 
                     outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
                     np.save(outfile, predicted[1])
+
+        return
+
+    def run_single_learning_mr(self, expconfig):
+
+        expcfg = cfgloader(expconfig)
+
+        expname = expcfg['DEFAULT']['expname']
+        cname = expcfg['IRP']['classifier']
+        k = expcfg['DEFAULT'].getint('topk')
+
+        for dataset in self.__expmap:
+            for descnum in self.__expmap[dataset]:
+                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
+
+                print(". Running <Learning MR - IRP> on", dataset, " -- descriptor", descnum)
+                print(". Experiment name: ", expname)
+
+                fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
+                n, rounds = fold_idx.shape
+
+                features = np.load(glob.glob(self.__pathcfg['feature'][dkey] + "*{0:s}*".format(expname))[0])
+                labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + "*irp*")[0])
+
+                outdir = self.__pathcfg['output'][dkey] + "{expname:s}.{cfname:s}/".format(expname=expname,
+                                                                                           cfname=cname)
+                safe_create_dir(outdir)
+
+                for r in range(rounds):
+                    print("  -> Starting round #:", r)
+                    idx_0 = np.flatnonzero(fold_idx[:, r] == 0).reshape(-1)
+                    idx_1 = np.flatnonzero(fold_idx[:, r] == 1).reshape(-1)
+
+                    # Contains the per-rank predictions, considering both folds once as train/test
+                    predicted = [[], []]
+
+                    for m in range(0, k):
+                        print("      -> Classifying Rank -", m+1)
+
+                        # savez_compressed+load names arrays as arr_0, arr_1, etc.
+                        r_features = features["arr_{0:d}".format(m)]
+                        r_labels = labels[:, m]
+
+                        # run classification already performs proper fold division. It suffices that a list is passed
+                        # whereby each position contains the features according to the fold
+                        if cname == 'svm' or cname == 'linearsvm':
+                            r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, True)
+                        else:
+                            r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, True)
+
+                        # Fold 0 is test
+                        predicted[0].append(r_predicted[0])
+
+                        # Fold 1 is test
+                        predicted[1].append(r_predicted[1])
+
+                    # We close the round by stacking the per-rank-position predictions, and saving the output files
+                    predicted[0] = np.hstack(predicted[0])
+                    predicted[1] = np.hstack(predicted[1])
+
+                    # Sanity check: is the total number of predictions the same as the total number of labels?
+                    assert (predicted[0].shape[0] + predicted[1].shape[0]) == labels.shape[0],\
+                           "Inconsistent number of predicted labels <{0:d} + {1:d} = {2:d}> and labels <{3:d}>"\
+                           .format(predicted[0].shape[0], predicted[1].shape[0],
+                                   (predicted[0].shape[0] + predicted[1].shape[0]), labels.shape[0])
+
+                    # Phew, all done. Let's save the predictions. The naming convention is has rXXX_YYY where XXX is the
+                    # number of the round, and YYY is either 000 (when fold 0 was test) or 001 (when fold 1 was test)
+                    outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    np.save(outfile, predicted[0])
+
+                    outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    np.save(outfile, predicted[1])
+
+    def run_relabeling(self, expcfg_):
+
+        if isinstance(expcfg_, str):
+            expcfg = cfgloader(expcfg_)
+        elif isinstance(expcfg_, configparser.ConfigParser):
+            expcfg = expcfg_
+        else:
+            raise TypeError("arg \'expcfg_\' should be either <str> or <configparser> type")
+
+        expname = expcfg['DEFAULT']['expname']
+        k = expcfg['DEFAULT'].getint('topk')
+        suffix = expcfg.get('IRP', 'classifier', fallback='')
+        if suffix != '':
+            suffix = '.' + suffix
+
+        for dataset in self.__expmap:
+            for descnum in self.__expmap[dataset]:
+                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
+
+                print(". Running <Relabeling-frequencies> on", dataset, " -- descriptor", descnum)
+                print(". Experiment name: ", expname)
+
+                fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
+                n, rounds = fold_idx.shape
+
+                gt_labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + "*irp*")[0])
+
+                indir = self.__pathcfg['output'][dkey] + "{expname:s}{suffix:s}/".format(expname=expname, suffix=suffix)
+                predlfpaths = glob.glob(indir + "*.npy")
+                predlfpaths.sort()
+
+                outdir = indir[:-1] + ".relabel_p2:p10/"
+                safe_create_dir(outdir)
+
+                for r in range(rounds):
+                    print("  -> Starting round #:", r)
+                    idx_0 = np.flatnonzero(fold_idx[:, r] == 0).reshape(-1)
+                    idx_1 = np.flatnonzero(fold_idx[:, r] == 1).reshape(-1)
+
+                    # --- IDX 0 is test and IDX 1 is train
+                    pred_labels = np.load(predlfpaths[r * 2])
+                    train_labels = gt_labels[idx_1]
+
+                    mod_labels = label_frequency_mod(pred_labels[:, 1:], train_labels[:, 1:])
+                    mod_labels = np.hstack([pred_labels[:, 0:1], mod_labels])
+
+                    outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    np.save(outfile, mod_labels)
+                    # ---
+
+                    # --- IDX 1 is test and IDX 0 is train
+                    pred_labels = np.load(predlfpaths[(r * 2) + 1])
+                    train_labels = gt_labels[idx_0]
+
+                    mod_labels = label_frequency_mod(pred_labels[:, 1:], train_labels[:, 1:])
+                    mod_labels = np.hstack([pred_labels[:, 0:1], mod_labels])
+
+                    outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
+                    np.save(outfile, mod_labels)
+                    # ---
+
 
         return

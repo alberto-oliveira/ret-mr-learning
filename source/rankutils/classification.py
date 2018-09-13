@@ -11,7 +11,7 @@ from sklearn.preprocessing import MinMaxScaler
 
 classifier_map = dict(log=LogisticRegression,
                       linearsvm=LinearSVC,
-                      svm=SVC,
+                      rbfsvm=SVC,
                       rfor=RandomForestClassifier)
 
 def fpe_err_handler(type, flag):
@@ -32,7 +32,7 @@ def get_classifier(cname):
 
     return clf
 
-def run_classification(features, labels, cname, scale=False, M=0):
+def run_classification(features, labels, cname, scale=True, M=0):
 
     np.set_printoptions(precision=2, linewidth=300)
     np.seterr(all='call')
@@ -81,7 +81,7 @@ def run_classification(features, labels, cname, scale=False, M=0):
 
     return predicted
 
-def run_two_set_classification(features, labels, foldidx, cname, scale=False):
+def run_two_set_classification(features, labels, foldidx, cname, scale=True):
 
     np.set_printoptions(precision=2, linewidth=300)
     np.seterr(all='call')
@@ -91,9 +91,9 @@ def run_two_set_classification(features, labels, foldidx, cname, scale=False):
 
     predicted = []
 
-    # Scaling between 1 and 2 if desired. Good for SVM.
+    # Scaling between -1 and 1 if desired. Good for SVM.
     if scale:
-        SCL = MinMaxScaler((1, 2))
+        SCL = MinMaxScaler((-1, 1))
         aux = np.vstack(features)
         SCL.fit(aux)
         features_s = SCL.transform(features)

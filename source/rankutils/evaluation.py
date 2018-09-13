@@ -215,7 +215,7 @@ class Evaluator:
             #print("Evaluating:", mdata['name'])
             # Individual Rank Position (irp) Evaluation
             irp_evaluation = []
-            irp_evaluation_sample = []
+            #irp_evaluation_sample = []
             rpp_evaluation = []
             patk_prediction = []
 
@@ -264,16 +264,16 @@ class Evaluator:
                 irp_mcc_s = np.zeros(nex, dtype=np.float64)
                 irp_f1_s = np.zeros(nex, dtype=np.float64)
 
-                for j in range(nex):
-                    irp_acc_s[j] = accuracy_score(irp_true_labels_single[j], irp_pred_labels_single[j])
-                    irp_nacc_s[j] = norm_acc(irp_true_labels_single[j], irp_pred_labels_single[j])
-                    irp_mcc_s[j] = matthews_corrcoef(irp_true_labels_single[j], irp_pred_labels_single[j])
-                    irp_f1_s[j] = 1.0
+                #for j in range(nex):
+                    #irp_acc_s[j] = accuracy_score(irp_true_labels_single[j], irp_pred_labels_single[j])
+                    #irp_nacc_s[j] = norm_acc(irp_true_labels_single[j], irp_pred_labels_single[j])
+                    #irp_mcc_s[j] = matthews_corrcoef(irp_true_labels_single[j], irp_pred_labels_single[j])
+                    #irp_f1_s[j] = 1.0
 
-                irp_evaluation_sample.append([np.mean(irp_acc_s),
-                                              np.mean(irp_nacc_s),
-                                              np.mean(irp_f1_s),
-                                              np.mean(irp_mcc_s)])
+                #irp_evaluation_sample.append([np.mean(irp_acc_s),
+                #                              np.mean(irp_nacc_s),
+                #                              np.mean(irp_f1_s),
+                #                              np.mean(irp_mcc_s)])
                 ###
 
                 # Evaluating PATK for round 0
@@ -299,7 +299,7 @@ class Evaluator:
 
             #for t in irp_evaluation: print(t)
             irp_evaluation = np.vstack(irp_evaluation)
-            irp_evaluation_sample = np.vstack(irp_evaluation_sample)
+            #irp_evaluation_sample = np.vstack(irp_evaluation_sample)
             pos_evaluation = np.vstack(pos_evaluation)
             patk_prediction = np.vstack(patk_prediction)
             rpp_evaluation = np.vstack(rpp_evaluation)
@@ -308,8 +308,8 @@ class Evaluator:
 
 
             mdata['irp_evaluation'] = np.vstack([irp_evaluation, np.mean(irp_evaluation, axis=0).reshape(1, -1)])
-            mdata['irp_evaluation_sample'] = np.vstack([irp_evaluation_sample,
-                                                        np.mean(irp_evaluation_sample, axis=0).reshape(1, -1)])
+            #mdata['irp_evaluation_sample'] = np.vstack([irp_evaluation_sample,
+            #                                            np.mean(irp_evaluation_sample, axis=0).reshape(1, -1)])
             mdata['pos_evaluation'] = np.vstack([pos_evaluation, np.mean(pos_evaluation, axis=0).reshape(1, -1)])
             mdata['predicted_counts'] = np.vstack([predicted_counts, np.mean(predicted_counts, axis=0).reshape(1, -1)])
             mdata['rpp_evaluation'] = np.vstack([rpp_evaluation, np.mean(rpp_evaluation, axis=0).reshape(1, -1)])

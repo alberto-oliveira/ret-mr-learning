@@ -11,8 +11,7 @@ from rankutils.utilities import getbasename, get_index
 from rankutils.features import get_rank_feature
 from rankutils.rIO import read_rank
 from rankutils.statistical import ev_density_approximation, ev_fit
-
-from jenkspy import jenks_breaks
+from rankutils.clustering import clustering_1d
 
 
 class Extractor:
@@ -21,13 +20,14 @@ class Extractor:
 
         self.expname = cfg.get('DEFAULT', 'expname')
         self.__topk = cfg.getint('DEFAULT', 'topk', fallback=10)
-        self.__distribtype = cfg.get('DEFAULT', 'distribution', fallback='GEV')
-        self.__bins_approx = cfg.getint('DEFAULT', 'bins_approximation', fallback=256)
-        self.__tail_idx = cfg.getint('DEFAULT', 'tail_idx', fallback=self.__topk)
-        self.__cluster_num = cfg.getint('DEFAULT', 'c_num', fallback=64)
-        self.__dct_type = cfg.getint('DEFAULT', 'dct_type', fallback=2)
-        self.__dct_range = cfg.getint('DEFAULT', 'dct_range', fallback=20)
-        self.__delta_range = cfg.getint('DEFAULT', 'delta_range', fallback=20)
+        self.__distribtype = cfg.get('parameters', 'distribution', fallback='GEV')
+        self.__bins_approx = cfg.getint('parameters', 'bins_approximation', fallback=256)
+        self.__tail_idx = cfg.getint('parameters', 'tail_idx', fallback=self.__topk)
+        self.__cluster_num = cfg.getint('parameters', 'c_num', fallback=64)
+        self.__clustering = cfg.get('parameters', 'clustering', fallback='jenks')
+        self.__dct_type = cfg.getint('parameters', 'dct_type', fallback=2)
+        self.__dct_range = cfg.getint('parameters', 'dct_range', fallback=20)
+        self.__delta_range = cfg.getint('parameters', 'delta_range', fallback=20)
 
         self.__namelist = None
         self.__distfitparams = None
@@ -56,10 +56,10 @@ class Extractor:
                 if featalias == 'cluster_diff' and not self.__cluster_check:
                     self.__cluster_check = True
 
-                if (featalias == 'emd' or featalias == 'query-bhatt') and not self.__density_check:
+                if (featalias == 'emd' or featalias == 'query_bhatt') and not self.__density_check:
                     self.__density_check = True
 
-                if featalias == 'query-bhatt' and not self.__fit_check:
+                if featalias == 'query_bhatt' and not self.__fit_check:
                     self.__fit_check = True
 
         if self.__density_check and self.__namelist is None:
@@ -83,10 +83,11 @@ class Extractor:
 
         outfeatures_list = [[] for _ in range(0, self.__topk)]
 
+        #pdb.set_trace()
         rkflist = glob.glob(inputdir + "*.rk")
         rkflist.sort()
 
-        gfvargs = dict(rank=None,
+        gfvargs = dict(scores=None,
                        i=-1,
                        topk=self.__topk,
                        dct_type=self.__dct_type,
@@ -101,15 +102,19 @@ class Extractor:
                        q_edges=None
                        )
 
-        for rkfpath in rkflist[0:5]:
+        for rkfpath in rkflist[0:]:
 
                 print("    |_", getbasename(rkfpath))
 
                 rk_array = read_rank(rkfpath)
+                gfvargs['scores'] = rk_array['score']
 
                 ### Clustering ###
                 if self.__cluster_check:
-                    centers = np.sort(jenks_breaks(rk_array['score'][self.__topk:], self.__cluster_num - 1))
+                    centers = np.sort(clustering_1d(self.__clustering, **dict(data=rk_array['score'][self.__topk:],
+                                                                              c_num=self.__cluster_num)))
+
+                    centers = np.sort(centers)[::-1]
                     gfvargs['centers'] = centers
 
                 ##################
@@ -135,7 +140,7 @@ class Extractor:
 
                     topparams = self.__distfitparams[pidx, :].astype(np.float)
 
-                    print("       -> ", rk_array['name'][0], " : ", topparams[0])
+                    #print("       -> ", rk_array['name'][0], " : ", topparams[0])
 
                     for param in topparams:
 

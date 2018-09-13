@@ -5,6 +5,7 @@ import os
 import errno
 import glob
 import time
+#import ipdb as pdb
 
 import numpy as np
 
@@ -30,46 +31,86 @@ def safe_create_dir(dir):
         if exception.errno != errno.EEXIST:
             raise
 
-def check_experiment(expdir):
-    """
-    Checks if determined experiment output directories exist.
 
-    :param expdir: experiment directory in /output
-    :return: 0 if neither relevance prediction or performance prediction exists, 1 if only relevance prediction exists,
-             2 if only performance prediction exists, and 3 if both exists.
-    """
+def ndarray_bin_to_int(arr):
 
-    expdir = completedir(expdir)
-    check = 0
-
-    rpcheck = os.path.isdir(isexpdir + "rel-prediction")
-    ppcheck = os.path.isdir(isexpdir + "perf-prediction")
-
-    if rpcheck and ppcheck:
-        check = 3
-    elif rpcheck:
-        check = 1
-    elif ppcheck:
-        check = 2
+    if arr.ndim == 2:
+        arr2d = arr
+    elif arr.ndim == 1:
+        arr2d = arr.reshape(1, -1)
     else:
-        check = 0
+        raise ValueError("Input array should be either 1d or 2d. It is {0:d}d".format(arr.ndim))
+
+    nbi = arr2d.shape[1]
+
+    # If the number of bits is not divisible per 8, it has to pad the array with 0s
+    # I manually pad it, so I can pad in the left
+    if nbi % 8 != 8:
+        p = int(np.ceil(nbi / 8) * 8 - nbi)
+        arr2d = np.pad(arr2d, pad_width=((0, 0), (p, 0)), mode='constant', constant_values=0)
+
+    packn = np.packbits(arr2d, axis=1).astype(np.uint32)
+    if packn.ndim == 1:
+        packn = packn.reshape(1, -1)
+
+    nBy = packn.shape[1]  # number of columns is the number of Bytes
+
+    for x in range(0, nBy-1, 1):
+        np.left_shift(packn[:, x:x+1], (nBy-1-x)*8, packn[:, x:x+1])
+
+    return np.sum(packn, axis=1).astype(np.int32)
 
 
-    return check
+def makeDlabel(d):
+    if d['name'] == 'WBL':
+        return '{0:s} : shape={1:0.2f}, scale={2:0.2f}'.format(d['name'], d['shape'], d['scale'])
+
+    elif d['name'] == 'GEV':
+        return '{0:s} : shape={1:0.2f}, scale={2:0.2f}, loc={3:0.2f}'.format(d['name'], d['shape'], d['scale'],
+                                                                             d['loc'])
 
 
-def get_rank_colname(rank):
+def get_label(name):
+    parts = name.split("_")
+    i = 0
 
-    if np.all(rank['score'] == 1):
-        colname = 'normd'
-    else:
-        colname = 'score'
+    for i in range(len(parts)):
+        if parts[i].isdigit():
+            break
 
-    return colname
+    return "_".join(parts[:i])
+
+
+def get_query_label(qname):
+    suffix = qname.split("_", 1)[1]
+    return get_label(suffix)
+
+
+def read_and_convert(rkfpath, limit=np.newaxis, scale=False, convert=False):
+
+    from sklearn.preprocessing import MinMaxScaler
+    mms = MinMaxScaler((1, 2))
+
+    fullrank = read_rank(rkfpath)
+
+    rk = fullrank['score']
+    namelist = fullrank['name']
+
+    rk = rk[0:limit]
+
+    if scale:
+        rk = mms.fit_transform(rk.reshape(-1, 1)).reshape(-1)
+
+    if convert:
+        rk = np.max(rk) - rk
+
+    lowerb = np.min(rk)
+    upperb = np.max(rk)
+
+    return rk, namelist, (lowerb, upperb)
 
 
 def preprocess_ranks(dir, maxsz=1000):
-
 
     rkpathlist = glob.glob(dir + "/*.rk")
     rkpathlist.sort()
@@ -125,6 +166,7 @@ def get_img_name(imgpath):
     imname = parts[2]
 
     return imname
+
 
 def name_from_rankfile(rkpath):
 

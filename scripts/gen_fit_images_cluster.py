@@ -22,7 +22,7 @@ matlab_engine = matlab.engine.start_matlab()
 from rankutils.cfgloader import *
 from rankutils.utilities import safe_create_dir, completedir, getbasename
 from rankutils.rIO import read_rank
-from rankutils.statistical import diff_break_clustering, head_tail_clustering
+from clustering import head_tail_clustering, diff_break_clustering
 
 col_map = dict(oxford100k='votes',
                unicamp100k='votes',

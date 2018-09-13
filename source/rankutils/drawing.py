@@ -13,15 +13,16 @@ from sklearn.preprocessing import MinMaxScaler
 #import ipdb as pdb
 
 
-def colors_from_cmap(cmap_name, values, lower=0, upper=1):
+def colors_from_cmap(cmap_name, values, bounds=(0.0, 1.0)):
 
+    lower, upper = bounds
     if lower >= upper:
         raise ValueError("minv should be less than maxv")
 
-    if lower < 0:
-        lower = 0
-    if upper > 1:
-        upper = 1
+    if lower < 0.0:
+        lower = 0.0
+    if upper > 1.0:
+        upper = 1.0
 
     if not isinstance(values, np.ndarray):
         aux = np.array([values])
@@ -41,41 +42,45 @@ def colors_from_cmap(cmap_name, values, lower=0, upper=1):
 
     return clist
 
-# author='scikit-learn'
-def plot_confusion_matrix(ax, cm, classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=plt.cm.Blues,
-                          label="label"):
-    """
-    This function prints and plots the confusion matrix.
-    Normalization can be applied by setting `normalize=True`.
-    """
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        #print("Normalized confusion matrix")
-    else:
-        pass
-        #print('Confusion matrix, without normalization')
 
-    #print(cm)
+def rank_plot(rank, k, ax=None, title='', **kwargs):
 
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    #plt.title(title)
-    #plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    ax.set_xticks(tick_marks, classes)
-    ax.set_yticks(tick_marks, classes)
+    cmaptop = kwargs.get('cmaptop', 'Purples')
+    cmaptail = kwargs.get('cmaptail', 'Reds')
+    cnorm_bottom = kwargs.get('cmapnormbot', 0.5)
+    cnorm_top = kwargs.get('cmapnormtop', 1.0)
+    limit = kwargs.get('limit', rank.size)
+    start_pos = kwargs.get('start', 1)
+    bw = kwargs.get('barwidth', 1.0)
 
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        ax.text(j, i, format(cm[i, j], fmt),
-                 horizontalalignment="center",
-                 color="white" if cm[i, j] > thresh else "black")
+    if not ax:
+        ax = plt.gca()
 
-    ax.set_ylabel('True {0:s}'.format(label))
-    ax.set_xlabel('Predicted {0:s}'.format(label))
+    ax.set_title("{0:s}".format(title))
+
+    top = rank[0:k]
+    tail = rank[k:limit]
+
+    x_top = np.arange(start_pos, k+start_pos, 1, dtype=np.int32)
+    x_tail = np.arange(k+start_pos, limit+start_pos, 1, dtype=np.int32)
+    coloridx = np.arange(0, limit, 1, dtype=np.float64)
+
+    if top.size > 0:
+        clist_top = colors_from_cmap(cmaptop, coloridx, cnorm_bottom, cnorm_top)[0:k]
+        ax.bar(x_top, top, bw, 0.0, align='edge', color=clist_top, label='Top {0:d}'.format(k))
+
+    clist_tail = colors_from_cmap(cmaptail, coloridx, cnorm_bottom, cnorm_top)[k:]
+    ax.bar(x_tail, tail, bw, 0.0, align='edge', color=clist_tail, label='Tail')
+
+    ax.set_xlim(left=start_pos, right=x_tail[-1] + 1)
+    #ax.set_ylim(bottom=0, top=np.max(rank))
+
+    ax.set_xlabel('Rank Position')
+    ax.set_ylabel('Score')
+
+    return
+
+
 
 # author='matplotlib'
 def heatmap(data, row_labels, col_labels, ax=None, gridwidth=3.0, cbarlabel="", title="", cbar_kw={}, **kwargs):
@@ -119,26 +124,20 @@ def heatmap(data, row_labels, col_labels, ax=None, gridwidth=3.0, cbarlabel="", 
     ax.set_xticklabels(col_labels, fontdict=dict(fontsize=14))
     ax.set_yticklabels(row_labels, fontdict=dict(fontsize=14))
 
-
     # Let the horizontal axes labeling appear on top.
     ax.tick_params(top=False, bottom=True,
                    labeltop=False, labelbottom=True)
 
     # Rotate the tick labels and set their alignment.
-    plt.setp(ax.get_xticklabels(), rotation=-45, ha="left",
+    plt.setp(ax.get_xticklabels(), rotation=-30, ha="left",
              rotation_mode="anchor")
 
     # Turn spines off and create white grid.
     for edge, spine in ax.spines.items():
         spine.set_visible(False)
 
-    #ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
-    ax.set_xlim(-0.45, data.shape[1] + 1 - .45)
-    #ax.set_xlabel("Predicted {0:s}".format(label), fontdict=dict(fontsize=8))
-
+    ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
     ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
-    #ax.set_ylim(-0.45, data.shape[0] + 1 - .45)
-    #ax.set_ylabel("True {0:s}".format(label), fontdict=dict(fontsize=8))
 
     ax.grid(which="minor", color="w", linestyle='-', linewidth=gridwidth)
     ax.tick_params(which="minor", bottom=False, left=False)

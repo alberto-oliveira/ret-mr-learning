@@ -44,13 +44,13 @@ def run_extraction(dataset_choices, expconfig):
 
             if not extr:
                 extr = Extractor(expcfg, pathcfg['namelists'][dkey], pathcfg['distribution'][dkey])
-                print("  << {0:s} >>".format(pathcfg['distribution'][dkey]))
-                print("  << Creating extractor >>")
+                #print("  << {0:s} >>".format(pathcfg['distribution'][dkey]))
+                #print("  << Creating extractor >>")
             else:
                 extr.update_namelist(pathcfg['namelists'][dkey])
-                print("  << {0:s} >>".format(pathcfg['distribution'][dkey]))
+                #print("  << {0:s} >>".format(pathcfg['distribution'][dkey]))
                 extr.update_fit_params(pathcfg['distribution'][dkey])
-                print("  << Updating extractor >>")
+                #print("  << Updating extractor >>")
                 pass
 
             outfile = "{0:s}{1:s}.{2:s}".format(fvdir, dkey, expcfg['DEFAULT']['expname'])  # NPZ output file

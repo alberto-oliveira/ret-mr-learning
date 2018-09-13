@@ -3,75 +3,6 @@
 
 import numpy as np
 
-def head_tail_break(data, t=0.4):
-
-    assert data.ndim == 1, "Data should be 1-Dimensional."
-
-    breaks = []
-
-    if t >= 1:
-        t = 1.0
-    elif t < 0.1:
-        t = 0.1
-
-    mean = np.mean(data)
-    head_idx = np.argwhere(data >= mean)
-
-    head = data[head_idx]
-
-    if head.size/data.size <= t:
-        aux = head_tail_break(head.reshape(-1), t)
-        breaks = aux + [mean]
-
-    return breaks
-
-
-def head_tail_clustering(data, t=0.4):
-
-    mean_breaks = head_tail_break(data, t)
-
-    clustering = np.zeros((data.size), dtype=np.float32)
-    cluster_centers = np.zeros((len(mean_breaks) + 1), dtype=np.float32)
-
-    for b in mean_breaks:
-        clustering[data >= b] += 1
-
-    for c in np.arange(len(mean_breaks), -1, -1):
-        i = len(mean_breaks) - c
-        cidx = np.argwhere(clustering == c)
-
-        cluster_centers[i] = np.mean(data[cidx])
-
-    return clustering, cluster_centers
-
-
-def diff_break_clustering(data, dev_factor=0, min_clusters=-1):
-
-    diffs = np.abs((data[0:-1] - data[1:]).reshape(-1))
-
-    mean_diff = np.mean(diffs)
-    std_diff = np.std(diffs)
-
-    breaks = np.argwhere(diffs >= (mean_diff + dev_factor*std_diff)).reshape(-1) + 1
-
-    if breaks.size == 0:
-        return data
-
-    cluster_centers = np.zeros((breaks.size+1), dtype=np.float32)
-
-    for i in range(0, breaks.size + 1):
-
-        if i == 0:
-            vals = data[0:breaks[i]]
-        elif i == breaks.size:
-            vals = data[breaks[i-1]:]
-        else:
-            vals = data[breaks[i-1]:breaks[i]]
-
-        cluster_centers[i] = np.median(vals)
-
-    return cluster_centers
-
 
 def EMD(densa, edgesa, densb, edgesb):
 
@@ -97,6 +28,43 @@ def Bhattacharyya_coefficients(densa, edgesa, densb, edgesb):
     return np.sqrt(pa*pb)
 
 
+"""
+https://stackoverflow.com/questions/22354094/pythonic-way-of-detecting-outliers-in-one-dimensional-observation-data
+"""
+def MAD_outlier(data, t=3.5):
+    """
+    Returns a boolean array with True if data are outliers and False
+    otherwise.
+
+    Parameters:
+    -----------
+        data : An numobservations by numdimensions array of observations
+        thresh : The modified z-score to use as a threshold. Observations with
+            a modified z-score (based on the median absolute deviation) greater
+            than this value will be classified as outliers.
+
+    Returns:
+    --------
+        mask : A numobservations-length boolean array.
+
+    References:
+    ----------
+        Boris Iglewicz and David Hoaglin (1993), "Volume 16: How to Detect and
+        Handle Outliers", The ASQC Basic References in Quality Control:
+        Statistical Techniques, Edward F. Mykytka, Ph.D., Editor.
+    """
+    if len(data.shape) == 1:
+        data = data[:, np.newaxis]
+    median = np.median(data, axis=0)
+    diff = np.sum((data - median) ** 2, axis=-1)
+    diff = np.sqrt(diff)
+    med_abs_deviation = np.median(diff)
+
+    modified_z_score = 0.6745 * diff / med_abs_deviation
+
+    return modified_z_score > t
+
+
 def ev_density_approximation(d, lowerb, upperb, bins, input_engine=None):
 
     import matlab
@@ -119,6 +87,37 @@ def ev_density_approximation(d, lowerb, upperb, bins, input_engine=None):
         matlab_engine.quit()
 
     return dens, edges
+
+
+def ev_values(d, n, bounds, input_engine=None):
+
+    import matlab
+    if not input_engine:
+        import matlab.engine
+        matlab_engine = matlab.engine.start_matlab()
+    else:
+        matlab_engine = input_engine
+
+    lb, ub = bounds
+    x = matlab.double(np.linspace(0, np.floor(ub * 1.5), n).reshape(-1).tolist())
+    x_cdf = matlab.double(np.linspace(lb, ub, n).reshape(-1).tolist())
+    x_inv = matlab.double(np.linspace(0, 1, n, endpoint=False).reshape(-1).tolist())
+
+    d['x'] = np.array(x).reshape(-1)
+    d['xcdf'] = np.array(x_cdf).reshape(-1)
+    d['xinv'] = np.array(x_inv).reshape(-1)
+
+    if d['name'] == 'WBL':
+        d['pdf'] = np.array(matlab_engine.wblpdf(x, d['scale'], d['shape']), dtype=np.float64).reshape(-1)
+        d['cdf'] = np.array(matlab_engine.wblcdf(x_cdf, d['scale'], d['shape']), dtype=np.float64).reshape(-1)
+        d['inv'] = np.array(matlab_engine.wblinv(x_inv, d['scale'], d['shape']), dtype=np.float64).reshape(-1)
+
+    elif d['name'] == 'GEV':
+        d['pdf'] = np.array(matlab_engine.gevpdf(x, d['shape'], d['scale'], d['loc']), dtype=np.float64).reshape(-1)
+        d['cdf'] = np.array(matlab_engine.gevcdf(x_cdf, d['shape'], d['scale'], d['loc']), dtype=np.float64).reshape(-1)
+        d['inv'] = np.array(matlab_engine.gevinv(x_inv, d['shape'], d['scale'], d['loc']), dtype=np.float64).reshape(-1)
+
+    return
 
 
 def ev_fit(data, disttype, input_engine=None):
