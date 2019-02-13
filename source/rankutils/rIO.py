@@ -11,7 +11,7 @@ rel_dtype = dict(names=('name', 'rel'),
                  formats=('U100', np.int32))
 
 
-def read_rank(fpath, colname=''):
+def read_rank(fpath, colname='', rows=np.newaxis):
 
     if colname != '':
         c = rk_dtype['names'].index(colname)
@@ -20,7 +20,7 @@ def read_rank(fpath, colname=''):
     else:
         arr = np.loadtxt(fpath, dtype=rk_dtype)
 
-    return arr
+    return np.array(arr[:rows])
 
 def write_rank(fpath, rank):
 

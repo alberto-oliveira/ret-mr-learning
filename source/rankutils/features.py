@@ -4,32 +4,36 @@
 import numpy as np
 import scipy.fftpack as fft
 
+from sklearn.preprocessing import normalize
+
 from jenkspy import jenks_breaks
 
-import ipdb as pdb
+#import ipdb as pdb
 
 
 def get_rank_feature(featalias, **ka):
+
     if featalias == 'dct':
-        return rank_features_kDCT(ka['scores'], ka['topk'], ka['dct_type'])
+        return rank_features_kDCT(ka['scores'], ka['topk'], ka['dct_type'], ka['norm'])
     elif featalias == 'dct_shift':
-        return rank_features_shiftDCT(ka['scores'], ka['i'], ka['dct_range'], ka['dct_type'])
+        return rank_features_shiftDCT(ka['scores'], ka['i'], ka['dct_range'], ka['dct_type'], ka['norm'])
     elif featalias == 'deltaik':
-        return rank_features_deltaik(ka['scores'], ka['i'], ka['delta_range'])
+        return rank_features_deltaik(ka['scores'], ka['i'], ka['delta_range']), ka['norm']
     elif featalias == 'deltaik_c':
-        return rank_features_circ_deltaik(ka['scores'], ka['i'], ka['delta_range'])
+        return rank_features_circ_deltaik(ka['scores'], ka['i'], ka['delta_range'], ka['abs'], ka['norm'])
     elif featalias == 'cluster_diff':
-        return rank_features_cluster_diff(ka['scores'], ka['i'], ka['topk'], ka['cluster_num'], ka['centers'])
+        return rank_features_cluster_diff(ka['scores'], ka['i'], ka['topk'], ka['cluster_num'], ka['centers'],
+                                          ka['norm'])
     elif featalias == 'emd':
-        return rank_features_density_distance(ka['densities'], ka['edges'], ka['i'], ka['distmat'])
+        return rank_features_density_distance(ka['densities'], ka['edges'], ka['i'], ka['distmat'], ka['norm'])
     elif featalias == 'query_bhatt':
         return rank_features_density_distance_from_query(ka['q_density'], ka['q_edges'],
-                                                         ka['densities'], ka['edges'], ka['i'])
+                                                         ka['densities'], ka['edges'], ka['i'], ka['norm'])
     else:
         raise ValueError("<{0:s}> is not a valid feature alias. ".format(featalias))
 
 
-def rank_features_kDCT(scores, k, dct_type):
+def rank_features_kDCT(scores, k, dct_type, norm=False):
     """
     Extracts DCT features from the top-k ranked scores from an input rank. The 'notop' flags points if top-k is from
     position 1 to k (notop = Fslse) or from position 2 to k+1 (notop = True).
@@ -46,10 +50,13 @@ def rank_features_kDCT(scores, k, dct_type):
 
     kdct = fft.dct(topk, dct_type)
 
-    return kdct
+    if norm:
+        return normalize(kdct.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return kdct
 
 
-def rank_features_shiftDCT(scores, i, k, dct_type):
+def rank_features_shiftDCT(scores, i, k, dct_type, norm=False):
     """
     Extracts DCT features from the i-th to (i+k)-th position of the scores.
 
@@ -64,10 +71,13 @@ def rank_features_shiftDCT(scores, i, k, dct_type):
 
     kdct = fft.dct(scores[i:i + k], dct_type)
 
-    return kdct
+    if norm:
+        return normalize(kdct.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return kdct
 
 
-def rank_features_deltaik(scores, i, k):
+def rank_features_deltaik(scores, i, k, norm=False):
     """
     Extracts the Delta i-k features from a scores. Delta_i-k is defined as <(si - si+1), (si - si+2), ..., (si - sk)>, for
     ranked scores {s1, s2, ..., si, ..., sk, ..., sn}
@@ -79,7 +89,7 @@ def rank_features_deltaik(scores, i, k):
     :return: numpy array of features
     """
 
-    fv = []
+    featlist = []
 
     if k >= scores.shape[0]:
         k = scores.shape[0] - 1
@@ -87,12 +97,17 @@ def rank_features_deltaik(scores, i, k):
     for p in range(i+1, k+1):
 
         diff = scores[i] - scores[p]
-        fv.append(diff)
+        featlist.append(diff)
 
-    return np.array(fv)
+    fv = np.array(featlist)
+
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv
 
 
-def rank_features_circ_deltaik(scores, i, k):
+def rank_features_circ_deltaik(scores, i, k, abs=False, norm=False):
     """
     Extracts the circular Delta i-k features from a scores. circ_Delta_i-k_ is defined as <(si - s1), (si - s2), ...,
     (si - si-1), (si - si+1), ..., (si - sk)>, for ranked scores {s1, s2, ..., si, ..., sk, ..., sn}
@@ -103,7 +118,7 @@ def rank_features_circ_deltaik(scores, i, k):
     :return: numpy array of features
     """
 
-    fv = []
+    featlist = []
 
     if k >= scores.shape[0]:
         k = scores.shape[0] - 1
@@ -112,12 +127,19 @@ def rank_features_circ_deltaik(scores, i, k):
 
         if p != i:
             diff = scores[i] - scores[p]
-            fv.append(diff)
+            if abs:
+                diff = np.abs(diff)
+            featlist.append(diff)
 
-    return np.array(fv)
+    fv = np.array(featlist)
+
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv
 
 
-def rank_features_cluster_diff(scores, i, k, c, centers=[]):
+def rank_features_cluster_diff(scores, i, k, c, centers=[], norm=False):
     """
     Extracts the Cluster difference features from a rank. Cluster difference features for position i are defined as:
     <|si - m0|, |si - m1|, |si - m2|, ..., |si - mc|>, where {m0, m1, ..., mc} are m clusters found by jenks-breaks
@@ -134,12 +156,15 @@ def rank_features_cluster_diff(scores, i, k, c, centers=[]):
     if centers == []:
         centers = np.sort(np.array(jenks_breaks(scores[k:].reshape(-1), c - 1)))
 
-    fv = np.abs(scores[i] - centers)
+    fv = np.array(np.abs(scores[i] - centers))
 
-    return np.array(fv)
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv
 
 
-def rank_features_density_distance(densities, edges, i, distmat=np.array([])):
+def rank_features_density_distance(densities, edges, i, distmat=np.array([]), norm=False):
 
     from rankutils.statistical import EMD
 
@@ -164,11 +189,13 @@ def rank_features_density_distance(densities, edges, i, distmat=np.array([])):
 
     fv = np.hstack([distmat[i, 0:i], distmat[i, i+1:]])
 
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv
 
-    return fv
 
-
-def rank_features_density_distance_from_query(q_density, q_edges, r_densities, r_edges, i):
+def rank_features_density_distance_from_query(q_density, q_edges, r_densities, r_edges, i, norm=False):
 
     from rankutils.statistical import Bhattacharyya_coefficients
 
@@ -177,5 +204,8 @@ def rank_features_density_distance_from_query(q_density, q_edges, r_densities, r
 
     fv = Bhattacharyya_coefficients(q_density, q_edges, curr_density, curr_edges)
 
-    return fv
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv
 

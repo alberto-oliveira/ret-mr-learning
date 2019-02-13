@@ -12,8 +12,10 @@ from rankutils.extraction import Extractor
 from rankutils.rIO import *
 from rankutils.cfgloader import *
 from rankutils.utilities import safe_create_dir, getbasename, get_index
-from rankutils.mappings import descriptor_map
+from rankutils.mappings import ranking_type_map
 from rankutils.statistical import ev_density_approximation
+
+import ipdb as pdb
 
 import matlab
 import matlab.engine
@@ -30,32 +32,27 @@ def run_extraction(dataset_choices, expconfig):
     extr = None
 
     for dataset in dataset_choices:
-        for descnum in dataset_choices[dataset]:
+        for r in dataset_choices[dataset]:
 
-            print(". Running Extraction on", dataset, " -- descriptor", descnum)
+            dkey = "{0:s}_{1:03d}".format(dataset, r)
+            rktpname = pathcfg[dkey]['rktpdir']
+
+            print(". Running Extraction on: {0:s}.{1:s}".format(dataset, rktpname))
             print(". Experiment: ", expcfg['DEFAULT']['expname'])
 
-            dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
-
-            rkdir = pathcfg["rank"][dkey]
-            fvdir = pathcfg["feature"][dkey]
-
-            safe_create_dir(fvdir)
+            lblfpath = glob.glob(pathcfg[dkey]["label"] + "*" + rktpname + "*")[0]
+            safe_create_dir(pathcfg[dkey]["feature"])
 
             if not extr:
-                extr = Extractor(expcfg, pathcfg['namelists'][dkey], pathcfg['distribution'][dkey])
-                #print("  << {0:s} >>".format(pathcfg['distribution'][dkey]))
-                #print("  << Creating extractor >>")
+                extr = Extractor(expcfg, pathcfg[dkey]['namelist'], pathcfg[dkey]['distribution'])
             else:
-                extr.update_namelist(pathcfg['namelists'][dkey])
-                #print("  << {0:s} >>".format(pathcfg['distribution'][dkey]))
-                extr.update_fit_params(pathcfg['distribution'][dkey])
-                #print("  << Updating extractor >>")
-                pass
+                extr.update_namelist(pathcfg[dkey]['namelist'])
+                extr.update_fit_params(pathcfg[dkey]['distribution'])
 
-            outfile = "{0:s}{1:s}.{2:s}".format(fvdir, dkey, expcfg['DEFAULT']['expname'])  # NPZ output file
+            outfile = "{0:s}{1:s}.{2:s}".format(pathcfg[dkey]["feature"],
+                                                dkey, expcfg['DEFAULT']['expname'])  # NPZ output file
 
-            extr.extract(rkdir, outfile, matlab_engine=matlab_engine)
+            extr.extract(pathcfg[dkey]["rank"], lblfpath, outfile, matlab_engine=matlab_engine)
 
     matlab_engine.quit()
 
@@ -67,31 +64,32 @@ if __name__ == "__main__":
     parser.add_argument("dataset",
                         help="dataset to run labeling on. If 'all', runs on all datasets and descriptors.",
                         type=str,
-                        choices=list(descriptor_map.keys()) + ["all"])
+                        choices=list(ranking_type_map.keys()) + ["all"])
 
-    parser.add_argument("descnum",
-                        help="descriptor number. If the descriptor number does not exist for the dataset,"
-                             "exits with error. If all is chosen for dataset, ignores and runs for all descriptors.",
+    parser.add_argument("rktpnum",
+                        help="Number linked to the ranking approach used for the dataset.",
                         type=int)
 
-    parser.add_argument("expconfig", help="path to experiment .cfg file",
+    parser.add_argument("expconfig", help="Path to experiment .cfg file",
                         type=str)
 
     args = parser.parse_args()
 
     dataset = args.dataset
-    descnum = args.descnum
+    rktpnum = args.rktpnum
     expconfig = args.expconfig
 
-    if dataset == "all":
-        dataset_choices = descriptor_map
+    if args.dataset == "all":
+        dataset_choices = ranking_type_map
     else:
-        if descnum in descriptor_map[dataset]:
+        if args.rktpnum in ranking_type_map[args.dataset]:
             dataset_choices = dict()
-            dataset_choices[dataset] = [descnum]
+            dataset_choices[args.dataset] = [args.rktpnum]
+        elif args.rktpnum == -1:
+            dataset_choices = dict()
+            dataset_choices[args.dataset] = list(ranking_type_map[args.dataset])
         else:
-            print("Unavailable descriptor number {0:d} for dataset {1:s}.".format(descnum, dataset))
-            print("Choise are: ", descriptor_map[dataset], "   Exiting\n---")
-            sys.exit(2)
+            print("Unavailable raking-type number {0:d} for dataset {1:s}.".format(args.descnum, args.dataset))
+            print("Choices are: ", ranking_type_map[args.dataset], "   Exiting\n---")
 
     run_extraction(dataset_choices, expconfig)

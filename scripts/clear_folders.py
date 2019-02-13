@@ -8,7 +8,7 @@ import glob
 
 sys.path.append("/home/alberto/SpotME/projects/performance-prediction/sources/ret-mr-learning/source")
 from rankutils.cfgloader import *
-from rankutils.mappings import descriptor_map
+from rankutils.mappings import ranking_type_map
 
 def clear_folders(dataset_choices, rootname):
 
@@ -31,9 +31,9 @@ if __name__ == "__main__":
 
     parser.add_argument("dataset", help="dataset to run labeling on. If 'all', runs on all datasets and descriptors.",
                         type=str,
-                        choices=list(descriptor_map.keys())+["all"])
+                        choices=list(ranking_type_map.keys()) + ["all"])
 
-    parser.add_argument("descnum", help="descriptor number. If the descriptor number does not exist for the dataset,"
+    parser.add_argument("rkgnum", help="descriptor number. If the descriptor number does not exist for the dataset,"
                         "exits with error. If all is chosen for dataset, ignores and runs for all descriptors.",
                         type=int)
 
@@ -48,14 +48,14 @@ if __name__ == "__main__":
     rootname = args.rootname
 
     if dataset == "all":
-        dataset_choices = descriptor_map
+        dataset_choices = ranking_type_map
     else:
-        if descnum in descriptor_map[dataset]:
+        if descnum in ranking_type_map[dataset]:
             dataset_choices = dict()
             dataset_choices[dataset] = [descnum]
         else:
             print("Unavailable descriptor number {0:d} for dataset {1:s}.".format(descnum, dataset))
-            print("Choices are: ", descriptor_map[dataset], "   Exiting\n---")
+            print("Choices are: ", ranking_type_map[dataset], "   Exiting\n---")
             sys.exit(2)
 
     clear_folders(dataset_choices, rootname)

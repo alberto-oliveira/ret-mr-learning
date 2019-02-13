@@ -6,7 +6,7 @@ import glob
 import argparse
 import ipdb as pdb
 
-from rankutils.mappings import descriptor_map
+from rankutils.mappings import ranking_type_map
 from rankutils.cfgloader import cfgloader
 
 import numpy as np
@@ -154,7 +154,7 @@ if __name__ == "__main__":
 
     parser.add_argument("dataset", help="dataset to run experiment.",
                         type=str,
-                        choices=list(descriptor_map.keys()))
+                        choices=list(ranking_type_map.keys()))
 
     parser.add_argument("desc_a", help="First descriptor number for merging.",
                         type=int)

@@ -4,30 +4,30 @@ help:
 PATHCFG?="./path_2.cfg"
 DBPARAMS?="./dbparams.cfg
 DATASET?=all
-DESCRIPTOR?=1
+RKTPNUM?=1
 CFGDIR?="./expcfg/"
 CFGPATH?=$(CFGDIR)$(CFGNAME)
 OUTROOT?="../output/2x5-fold/"
 
-
 extraction: run_extraction.py
-	python run_extraction.py $(DATASET) $(DESCRIPTOR) $(CFGPATH)
+	python run_extraction.py $(DATASET) $(RKTPNUM) $(CFGPATH)
 
 experiment: run_experiments.py
 ifndef SAMPLE
-	python run_experiments.py $(DATASET) $(DESCRIPTOR) $(CFGPATH)
+	python run_experiments.py $(DATASET) $(RKTPNUM) $(CFGPATH) $(OVW)
 else
-	python run_experiments.py $(DATASET) $(DESCRIPTOR) $(CFGPATH) -s $(SAMPLE)
+	python run_experiments.py $(DATASET) $(RKTPNUM) $(CFGPATH) -s $(SAMPLE) $(OVW)
 endif
 
-baseline: create_baselines.py
-	python create_baselines.py $(DATASET) $(DESCRIPTOR) $(BSLNAME) $(OUTFOLDER)
+pipeline: extraction experiment
 
+baseline: create_baselines.py
+	python create_baselines.py $(DATASET) $(RKTPNUM) $(BSLNAME) $(OUTFOLDER)
 
 .PHONY: view list clean
 
 view:
-		@cat $(CFGPATH)
+	@cat $(CFGPATH)
 
 list:
-		@ls $(CFGDIR)
+	@ls $(CFGDIR)

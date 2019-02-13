@@ -6,11 +6,13 @@ import glob
 import pickle
 
 from collections import OrderedDict
+from tqdm import tqdm
+
 
 from rankutils.labeling import *
 from rankutils.cfgloader import *
 from rankutils.utilities import safe_create_dir, preprocess_ranks
-from rankutils.mappings import descriptor_map, baseline_map
+from rankutils.mappings import ranking_type_map, baseline_map
 from rankutils.classification import *
 from rankutils.postprocessing import label_frequency_mod
 
@@ -46,40 +48,44 @@ class ExperimentManager:
     def expmap(self):
         return self.__expmap
 
-    def set_experiment_map(self, dataset_pairs=[], set=''):
+    def set_experiment_map(self, dataset_pairs=None, set=''):
 
         if set == 'all':
-            self.__expmap = OrderedDict(descriptor_map)
+            self.__expmap = OrderedDict(ranking_type_map)
         elif set == 'none':
             self.__expmap = OrderedDict()
         else:
-            self.__expmap = OrderedDict()
-            for dataset, descnum in dataset_pairs:
-                if descnum not in descriptor_map[dataset]:
-                    raise ValueError("Unavailable descriptor number {0:d} for dataset {1:s}."
-                                     " Available: {2:s}".format(descnum, dataset, str(descriptor_map[dataset])))
-                else:
-                    if dataset not in self.__expmap:
-                        self.__expmap[dataset] = [descnum]
+            if isinstance(dataset_pairs, dict):
+                self.__expmap = OrderedDict(dataset_pairs)
+
+            elif isinstance(dataset_pairs, list):
+                self.__expmap = OrderedDict()
+                for dataset, rktpnum in dataset_pairs:
+                    if rktpnum not in ranking_type_map[dataset]:
+                        raise ValueError("Unavailable ranking-type number {0:d} for dataset {1:s}."
+                                         " Available: {2:s}".format(rktpnum, dataset, str(ranking_type_map[dataset])))
                     else:
-                        self.__expmap[dataset].append(descnum)
+                        if dataset not in self.__expmap:
+                            self.__expmap[dataset] = [rktpnum]
+                        else:
+                            self.__expmap[dataset].append(rktpnum)
 
-    def add_to_experiment_map(self, dataset, descnum):
+    def add_to_experiment_map(self, dataset, rktpnum):
 
-        if descnum not in descriptor_map[dataset]:
-            raise ValueError("Unavailable descriptor number {0:d} for dataset {1:s}."
-                             " Available: {2:s}".format(descnum, dataset, str(descriptor_map[dataset])))
+        if rktpnum not in ranking_type_map[dataset]:
+            raise ValueError("Unavailable ranking-type number {0:d} for dataset {1:s}."
+                             " Available: {2:s}".format(rktpnum, dataset, str(ranking_type_map[dataset])))
         else:
             if dataset in self.__expmap:
-                if descnum not in self.__expmap:
-                    self.__expmap[dataset].append(descnum)
+                if rktpnum not in self.__expmap:
+                    self.__expmap[dataset].append(rktpnum)
             else:
-                self.__expmap[dataset] = [descnum]
+                self.__expmap[dataset] = [rktpnum]
 
     def list_available_experiments(self):
 
-        for dataset in descriptor_map:
-            print("{0:<15s} ->".format("[" + dataset + "]"), descriptor_map[dataset])
+        for dataset in ranking_type_map:
+            print("{0:<15s} ->".format("[" + dataset + "]"), ranking_type_map[dataset])
 
         print("\n---\n")
 
@@ -88,16 +94,17 @@ class ExperimentManager:
     def run_baselines(self, bsl, k, outfolder):
 
         for dataset in self.__expmap:
-            for descnum in self.__expmap[dataset]:
-                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
+            for rktpnum in self.__expmap[dataset]:
+                dkey = "{0:s}_{1:03d}".format(dataset, rktpnum)
+                rktpname = self.__pathcfg[dkey]['rktpdir']
 
-                print(". Creating Baselines for ", dataset, " -- descriptor", descnum)
+                print(". Creating Baselines for ", dataset, " -- ", rktpname)
                 print(". Baseline output name: ", outfolder)
 
-                rkdir = self.__pathcfg['rank'][dkey]
+                rkdir = self.__pathcfg[dkey]['rank']
                 fold_idx = np.load(glob.glob(rkdir + "*folds.npy")[0])
 
-                outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(outfolder)
+                outdir = self.__pathcfg[dkey]['output'] + "{0:s}/".format(outfolder)
                 safe_create_dir(outdir)
 
                 n, rounds = fold_idx.shape
@@ -110,9 +117,9 @@ class ExperimentManager:
                     fs = np.sum(fold_idx[:, r] == 0)  # Number of examples indexed for fold 0
                     outfile = "{0:s}{1:s}_r{2:03d}_000_top{3:d}_bsl_irp.npy".format(outdir, dkey, r, k)
 
-                    params = (fs, k, self.__dbparams[dkey].getfloat('p10'))
+                    params = (fs, k, self.__dbparams.getfloat(dkey, 'p10'))
                     if bsl == 'maxn':
-                        labels = np.load(glob.glob(self.__pathcfg["label"][dkey] + "*irp*")[0])
+                        labels = np.load(glob.glob(self.__pathcfg[dkey]["label"] + "*{0:s}*".format(rktpname))[0])
                         fidx = np.argwhere(fold_idx[:, r] == 0)
                         bslarray = baseline_map[bsl](labels[fidx])
 
@@ -129,9 +136,9 @@ class ExperimentManager:
                     outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_bsl_irp.npy".format(outdir, dkey, r, k)
 
                     # Shape from test_idx is the number of examples in that fold
-                    params = (fs, k, self.__dbparams[dkey].getfloat('p10'))
+                    params = (fs, k, self.__dbparams.getfloat(dkey, 'p10'))
                     if bsl == 'maxn':
-                        labels = np.load(glob.glob(self.__pathcfg["label"][dkey] + "*irp*")[0])
+                        labels = np.load(glob.glob(self.__pathcfg[dkey]["label"] + "*{0:s}*".format(rktpname))[0])
                         fidx = np.argwhere(fold_idx[:, r] == 1)
                         bslarray = baseline_map[bsl](labels[fidx])
 
@@ -145,6 +152,7 @@ class ExperimentManager:
 
         return
 
+### -------------------- UNUSED -------------------- ###
     def run_stat_positional_mr(self, expconfig):
 
         from rankutils.stat_mr import StatMR
@@ -179,8 +187,8 @@ class ExperimentManager:
                 outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(expname)
                 safe_create_dir(outdir)
 
-                for r in range(rounds):
-                    print("  -> Starting round #:", r)
+                for r in tqdm(range(rounds), ncols=100, desc='Rounds ', total=rounds):
+                    #print("  -> Starting round #:", r)
 
                     # Getting round r indexes for fold 0 and fold 1
                     idx_0 = np.argwhere(fold_idx[:, r] == 0).reshape(-1)
@@ -192,9 +200,8 @@ class ExperimentManager:
                     # Pre-allocating the predictions. There is a total of m predictions, each of k positions.
                     # M is the number of ranks in the test fold.
                     predicted = np.zeros((TEST_X.shape[0], k), dtype=np.uint8)
-
-                    for i, rk in enumerate(TEST_X):
-                        print('     |_ [Rank {number:04d}]'.format(number=i))
+                    for i, rk in enumerate(tqdm(TEST_X, total=TEST_X.shape[0], ncols=100, desc='    Rank')):
+                        #print('     |_ [Rank {number:04d}]'.format(number=i))
 
                         t_vals = np.zeros(k, dtype=np.float64)
                         tail = rk[k:]
@@ -246,8 +253,9 @@ class ExperimentManager:
                     np.save(outfile, predicted)
 
         return
+### ------------------------------------------------ ###
 
-    def run_statistical_mr(self, expconfig, sampling=-1.0):
+    def run_statistical_mr(self, expconfig, sampling=-1.0, overwrite=False):
 
         from rankutils.stat_mr import StatMR
 
@@ -267,20 +275,22 @@ class ExperimentManager:
             zvals = [0.80, 1.0]
 
         for dataset in self.__expmap:
-            for descnum in self.__expmap[dataset]:
-                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
+            for rktpnum in self.__expmap[dataset]:
+                dkey = "{0:s}_{1:03d}".format(dataset, rktpnum)
+                rktpname = self.__pathcfg[dkey]['rktpdir']
 
-                print(". Running <Statistical MR - IRP> for ", dataset, " -- descriptor", descnum)
+                print(". Running <Statistical MR - IRP> for ", dataset, " -- ", rktpname)
                 print(". Experiment name: ", expname)
 
-                fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
+                fold_idx = np.load(glob.glob(self.__pathcfg[dkey]['rank'] + "*folds.npy")[0])
                 n, rounds = fold_idx.shape
 
                 # Loads and preprocesses the ranks. The result is an NxM matrix, where N is the
                 # number of ranks and M is an arbitrary maximum size for the processed ranks.
                 # M is used to homogenize the size of the ranks
-                ranks = preprocess_ranks(self.__pathcfg['rank'][dkey], maxsz=8000)
-                labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + '*irp*')[0])
+                ranks = preprocess_ranks(self.__pathcfg[dkey]['rank'], maxsz=15000)
+
+                labels = np.load(glob.glob(self.__pathcfg[dkey]['label'] + '*{0:s}*'.format(rktpname))[0])
 
                 # Consistency checks
                 assert n == ranks.shape[0], "Inconsistent number of indexes <{0:d}> and rank files <{1:d}>."\
@@ -289,10 +299,13 @@ class ExperimentManager:
                 assert n == labels.shape[0], "Inconsistent number of indexes <{0:d}> and labels <{1:d}>."\
                                              .format(n, labels.shape[0])
 
-                assert labels.shape[1] == k, "Inconsistent number of labels <{0:d}> and k <{1:d}>."\
+                assert labels.shape[1] >= k, "Inconsistent number of labels <{0:d}> and k <{1:d}>."\
                                              .format(labels.shape[1], k)
 
-                outdir = self.__pathcfg['output'][dkey] + "{0:s}/".format(expname)
+                if labels.shape[1] > k:
+                    labels = labels[:, 0:k]
+
+                outdir = self.__pathcfg[dkey]['output'] + "{0:s}/".format(expname)
                 safe_create_dir(outdir)
 
                 for r in range(rounds):
@@ -311,9 +324,11 @@ class ExperimentManager:
 
                     # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
                     try:
+                        if overwrite:
+                            raise FileNotFoundError
+
                         with open(mr_path, 'rb') as inpf:
                             stat_mr = pickle.load(inpf)
-
 
                     except FileNotFoundError:
                         stat_mr = StatMR(dist_name=dist_name, k=k, method=method, opt_metric=opt, verbose=True)
@@ -354,9 +369,11 @@ class ExperimentManager:
 
                     # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
                     try:
+                        if overwrite:
+                            raise FileNotFoundError
+
                         with open(mr_path, 'rb') as inpf:
                             stat_mr = pickle.load(inpf)
-
 
                     except FileNotFoundError:
                         stat_mr = StatMR(dist_name=dist_name, k=k, method=method, opt_metric=opt, verbose=True)
@@ -399,45 +416,50 @@ class ExperimentManager:
         expname = expcfg['DEFAULT']['expname']
         cname = expcfg['IRP']['classifier']
         k = expcfg['DEFAULT'].getint('topk')
+        featpack = expcfg.get('DEFAULT', 'features', fallback=expname)
 
         for dataset in self.__expmap:
-            for descnum in self.__expmap[dataset]:
-                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
+            for rktpnum in self.__expmap[dataset]:
+                dkey = "{0:s}_{1:03d}".format(dataset, rktpnum)
+                rktpname = self.__pathcfg[dkey]['rktpdir']
 
-                print(". Running <Learning MR - IRP> on", dataset, " -- descriptor", descnum)
+                print(". Running <Learning MR - IRP> for ", dataset, " -- ", rktpname)
                 print(". Experiment name: ", expname)
 
-                fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
+                fold_idx = np.load(glob.glob(self.__pathcfg[dkey]['rank'] + "*folds.npy")[0])
                 n, rounds = fold_idx.shape
 
-                features = np.load(glob.glob(self.__pathcfg['feature'][dkey] + "*{0:s}*".format(expname))[0])
-                labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + "*irp*")[0])
+                feat_pack = np.load(glob.glob(self.__pathcfg[dkey]['feature'] + "*{0:s}*".format(featpack))[0])
+                features = feat_pack['features']
+                labels = feat_pack['labels']
 
-                outdir = self.__pathcfg['output'][dkey] + "{expname:s}.{cfname:s}/".format(expname=expname,
+                assert (features.shape[1] == labels.shape[1] and features.shape[2] == labels.shape[2]),\
+                        "inconsistent shapes between features and labels. "
+
+                outdir = self.__pathcfg[dkey]['output'] + "{expname:s}.{cfname:s}/".format(expname=expname,
                                                                                            cfname=cname)
                 safe_create_dir(outdir)
 
-                for r in range(rounds):
-                    print("  -> Starting round #:", r)
+
+                for r in tqdm(range(rounds), ncols=100, desc='   |_Round', total=rounds):
+                    #print("  -> Starting round #:", r)
                     idx_0 = np.flatnonzero(fold_idx[:, r] == 0).reshape(-1)
                     idx_1 = np.flatnonzero(fold_idx[:, r] == 1).reshape(-1)
 
                     # Contains the per-rank predictions, considering both folds once as train/test
                     predicted = [[], []]
 
-                    for m in range(0, k):
-                        print("      -> Classifying Rank -", m+1)
+                    for m in tqdm(range(k), ncols=100, desc='        |_Position', total=k):
+                        #print("      -> Classifying Rank -", m+1)
 
-                        # savez_compressed+load names arrays as arr_0, arr_1, etc.
-                        r_features = features["arr_{0:d}".format(m)]
-                        r_labels = labels[:, m]
+                        # features is an k x N x V x D array. Labels is a k x N x V x 1 array
+                        p_features = features[m]
+                        p_labels = labels[m]
+
 
                         # run classification already performs proper fold division. It suffices that a list is passed
                         # whereby each position contains the features according to the fold
-                        if cname == 'svm' or cname == 'linearsvm':
-                            r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, True)
-                        else:
-                            r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, True)
+                        r_predicted = run_two_set_classification(p_features, p_labels, [idx_0, idx_1], cname, True)
 
                         # Fold 0 is test
                         predicted[0].append(r_predicted[0])
@@ -445,15 +467,16 @@ class ExperimentManager:
                         # Fold 1 is test
                         predicted[1].append(r_predicted[1])
 
+
                     # We close the round by stacking the per-rank-position predictions, and saving the output files
                     predicted[0] = np.hstack(predicted[0])
                     predicted[1] = np.hstack(predicted[1])
 
                     # Sanity check: is the total number of predictions the same as the total number of labels?
-                    assert (predicted[0].shape[0] + predicted[1].shape[0]) == labels.shape[0],\
+                    assert (predicted[0].shape[0] + predicted[1].shape[0]) == labels.shape[1],\
                            "Inconsistent number of predicted labels <{0:d} + {1:d} = {2:d}> and labels <{3:d}>"\
                            .format(predicted[0].shape[0], predicted[1].shape[0],
-                                   (predicted[0].shape[0] + predicted[1].shape[0]), labels.shape[0])
+                                   (predicted[0].shape[0] + predicted[1].shape[0]), labels.shape[1])
 
                     # Phew, all done. Let's save the predictions. The naming convention is has rXXX_YYY where XXX is the
                     # number of the round, and YYY is either 000 (when fold 0 was test) or 001 (when fold 1 was test)
@@ -463,8 +486,13 @@ class ExperimentManager:
                     outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
                     np.save(outfile, predicted[1])
 
+                feat_pack.close()
+                print('\n')
+
         return
 
+
+### -------------------- UNUSED -------------------- ###
     def run_single_learning_mr(self, expconfig):
 
         expcfg = cfgloader(expconfig)
@@ -472,55 +500,34 @@ class ExperimentManager:
         expname = expcfg['DEFAULT']['expname']
         cname = expcfg['IRP']['classifier']
         k = expcfg['DEFAULT'].getint('topk')
+        suffix = expcfg.get('DEFAULT', 'suffix', fallback="")
 
         for dataset in self.__expmap:
-            for descnum in self.__expmap[dataset]:
-                dkey = "{0:s}_desc{1:d}".format(dataset, descnum)
+            for rktpnum in self.__expmap[dataset]:
+                dkey = "{0:s}_{1:03d}".format(dataset, rktpnum)
+                rktpname = self.__pathcfg[dkey]['rktpdir']
 
-                print(". Running <Learning MR - IRP> on", dataset, " -- descriptor", descnum)
+                print(". Running <Learning MR - IRP> for ", dataset, " -- ", rktpname)
                 print(". Experiment name: ", expname)
 
-                fold_idx = np.load(glob.glob(self.__pathcfg['rank'][dkey] + "*folds.npy")[0])
+                fold_idx = np.load(glob.glob(self.__pathcfg[dkey]['rank'] + "*folds.npy")[0])
                 n, rounds = fold_idx.shape
 
-                features = np.load(glob.glob(self.__pathcfg['feature'][dkey] + "*{0:s}*".format(expname))[0])
-                labels = np.load(glob.glob(self.__pathcfg['label'][dkey] + "*irp*")[0])
+                features = np.load(glob.glob(self.__pathcfg[dkey]['feature'] + "*{0:s}*".format(expname))[0])
+                labels = np.load(glob.glob(self.__pathcfg[dkey]['label'] + '*{0:s}*'.format(rktpname))[0])
+                labels = labels[:, 0:k]
 
-                outdir = self.__pathcfg['output'][dkey] + "{expname:s}.{cfname:s}/".format(expname=expname,
-                                                                                           cfname=cname)
+                outdir = self.__pathcfg[dkey]['output'] + "{expname:s}{sfx:s}.{cfname:s}/".format(expname=expname,
+                                                                                                  sfx=suffix,
+                                                                                                  cfname=cname)
                 safe_create_dir(outdir)
 
-                for r in range(rounds):
-                    print("  -> Starting round #:", r)
+                for r in tqdm(range(rounds), ncols=100, desc='   |_Round', total=rounds):
+
                     idx_0 = np.flatnonzero(fold_idx[:, r] == 0).reshape(-1)
                     idx_1 = np.flatnonzero(fold_idx[:, r] == 1).reshape(-1)
 
-                    # Contains the per-rank predictions, considering both folds once as train/test
-                    predicted = [[], []]
-
-                    for m in range(0, k):
-                        print("      -> Classifying Rank -", m+1)
-
-                        # savez_compressed+load names arrays as arr_0, arr_1, etc.
-                        r_features = features["arr_{0:d}".format(m)]
-                        r_labels = labels[:, m]
-
-                        # run classification already performs proper fold division. It suffices that a list is passed
-                        # whereby each position contains the features according to the fold
-                        if cname == 'svm' or cname == 'linearsvm':
-                            r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, True)
-                        else:
-                            r_predicted = run_two_set_classification(r_features, r_labels, [idx_0, idx_1], cname, True)
-
-                        # Fold 0 is test
-                        predicted[0].append(r_predicted[0])
-
-                        # Fold 1 is test
-                        predicted[1].append(r_predicted[1])
-
-                    # We close the round by stacking the per-rank-position predictions, and saving the output files
-                    predicted[0] = np.hstack(predicted[0])
-                    predicted[1] = np.hstack(predicted[1])
+                    predicted = run_single_two_set_classification(features, labels, [idx_0, idx_1], cname, scale=True)
 
                     # Sanity check: is the total number of predictions the same as the total number of labels?
                     assert (predicted[0].shape[0] + predicted[1].shape[0]) == labels.shape[0],\
@@ -535,6 +542,9 @@ class ExperimentManager:
 
                     outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
                     np.save(outfile, predicted[1])
+
+                features.close()
+### ------------------------------------------------ ###
 
     def run_relabeling(self, expcfg_):
 

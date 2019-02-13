@@ -7,10 +7,20 @@ from jenkspy import jenks_breaks
 
 def clustering_1d(clalias, **ka):
 
+    assert ka['data'].ndim == 1 or ka['data'].shape[0] == 1 or ka['data'].shape[1] == 1, \
+           "Input data must be 1d. It is {0:s}".format(str(ka['data'].shape))
+
+    if ka['data'].ndim > 1:
+        data = ka['data'].reshape(-1)
+    else:
+        data = ka['data']
+
     if clalias == 'jenks':
-        return jenks_breaks(ka['data'], ka['c_num'] - 1)
+        return jenks_breaks(data, ka['c_num'] - 1)
     elif clalias == 'random':
-        return random_clustering(ka['data'], ka['c_num'])
+        return random_clustering(data, ka['c_num'])
+    elif clalias == 'fixed':
+        return fixed_points_clustering(data, ka['c_num'])
     else:
         raise ValueError("<{0:s}> is not a valid 1d clustering alias. ".format(clalias))
 
@@ -92,3 +102,17 @@ def random_clustering(data, c):
 
     ri = rnd.randint(0, data.size, c)
     return data[ri]
+
+
+def fixed_points_clustering(data, c):
+
+    if c > data.size:
+        raise ValueError("Number of clusters <{0:d}> must be less than total data size <{1:d}>".format(c, data.size))
+
+    step = int(np.round(data.size / (c-1)))
+    idx = np.arange(0, step*c, step)
+
+    if idx[-1] >= data.size:
+        idx[-1] = data.size-1
+
+    return data[idx]

@@ -5,27 +5,32 @@ import sys, os
 import random
 import warnings
 
+from rankutils.utilities import ProgressBar
+
 import numpy as np
 
 from sklearn.base import BaseEstimator
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score
 from sklearn.preprocessing import MinMaxScaler
 
-import matlab.engine
+from tqdm import tqdm
 
-from time import perf_counter
+import matlab.engine
 
 import ipdb as pdb
 
 np.random.seed(93311)
 
+
 def unwrap_self(arg, **kwarg):
     return StatMR.statistical_fixed(*arg, **kwarg)
+
 
 class StatMR(BaseEstimator):
 
     __opt_metrics_map = dict(ACC=accuracy_score, F1=f1_score, MCC=matthews_corrcoef)
     __matlab_engine = matlab.engine.start_matlab()
+    __matlab_engine.warning('off', 'all', nargout=0)
     __gev_opt = __matlab_engine.statset('Display', 'off', 'MaxIter', 2000.0, 'MaxFunEval', 15000.0)
 
     from matlab.engine import MatlabExecutionError
@@ -111,7 +116,7 @@ class StatMR(BaseEstimator):
         Fits the values of F and Z, using X and y.
 
         For each (F, Z) pair defined in the ranges of f_val and z_val, fits for every rank contained in X a weibull
-        distribution to its tail, which is then used to derive the cutoff score according to the value of delta.
+        distribution to its tail, which is then used to derive the cutoff score according to the value of dehttps://www.okcupid.com/homelta.
         Such cutoff is used to predict the relevance of the top k scores in X, which are in turn compared to their
         true relevance in y. The prediction is evaluated according to optimization metric optMetric, and the best
         values of F and Z kept. Alternatively, accepts single values for F and Z, if they were precomputed. If single
@@ -174,7 +179,7 @@ class StatMR(BaseEstimator):
         t_values = np.zeros((nsamples, 1), dtype=np.float32)
         predicted = []
 
-        for i in range(nsamples):
+        for i in tqdm(range(nsamples), desc='     -> Predicting ', total=nsamples, ncols=100):
 
             tail = remainderX[i, :]
             target = targetX[i, :]
@@ -200,6 +205,7 @@ class StatMR(BaseEstimator):
 
         if n < self.__min_tail_sz:
             if self.v:
+                pdb.set_trace()
                 print("# of unique scores is less than the minimum tail size of {0:d}".format(self.__min_tail_sz))
             return np.array([]), 0, 0
 
@@ -240,7 +246,7 @@ class StatMR(BaseEstimator):
         if tail.size == 0:
             if self.v:
                 print("  -> Setting t = -1: All predictions non-relevant. ")
-            return -1, 0.0, 0.0
+            return -1
 
         dparams = StatMR.ev_estim_matlab(tail, self.__dist_name)
 
@@ -257,38 +263,33 @@ class StatMR(BaseEstimator):
         inc_f = self.__min_tail_sz
         dec_f = self.__min_tail_sz
 
-        firsttail, sidx, eidx = self.get_tail(data, f, z)
+        _, sidx, eidx = self.get_tail(data, f, z)
 
-        if firsttail.size == 0:
+        if eidx - sidx == 0:
             if self.v:
                 print("  -> Setting t = -1: All predictions non-relevant. ")
-            return -1, 0.0, 0.0
+            return -1
 
+        validtail = np.unique(data)[::-1]
+        validtail = validtail[validtail != -1]
 
-        # The start of the tail increases by subtracting from sidx (starting index) and decreases by adding to sidx.
-        # The maximum increase is inc_f, and maximum decrease is dec_f.
-        a = sidx-inc_f
+        a = sidx - inc_f
         if a < 0:
             a = 0
 
-        b = sidx+dec_f
-        if b > firsttail.size:
-            b = firsttail.size
+        b = eidx + inc_f
+        if b >= validtail.size:
+            b = validtail.size
 
-        start_rg = np.arange(a, b+1, dtype=np.int32)
+        validtail = validtail[a:b]
 
+        if validtail.size < self.__min_tail_sz:
+            if self.v:
+                print("  -> Setting t = -1: All predictions non-relevant. ")
+            return -1
 
-        # The end of the tail increases by adding to eidx (ending index) and decreases by subtracting from eidx.
-        # The maximum increase is inc_f. The maximum decrease is dec_f.
-        a = eidx-dec_f
-        if a < 0:
-            a = 0
-
-        b = eidx+inc_f
-        if b > firsttail.size:
-            b = firsttail.size
-
-        end_rg = np.arange(a, b+1, dtype=np.int32)
+        start_rg = np.arange(0, 2*inc_f + 1, dtype=np.int32)
+        end_rg = np.arange(validtail.size-2*inc_f, validtail.size+1, dtype=np.int32)
 
         idx_pairs = np.array(np.meshgrid(start_rg, end_rg)).T.reshape(-1, 2)
         np.random.shuffle(idx_pairs)
@@ -301,20 +302,27 @@ class StatMR(BaseEstimator):
             # Skips any index pair which do not generate a tail with minimum size
             if ep - sp >= self.__min_tail_sz:
 
-                tail = firsttail[sp:ep]
+                tail = validtail[sp:ep]
 
                 if np.min(tail) == 0:
                     tail[tail == 0] += 0.00000001
 
-                dparams = StatMR.ev_estim_matlab(tail)
-                wblgen.append(StatMR.ev_gen_matlab(50, **dparams))
+                dparams = StatMR.ev_estim_matlab(tail, self.__dist_name)
+                wblgen.append(StatMR.ev_gen_matlab(self.__dist_name, 50, **dparams))
                 n_iter -= 1
 
             it += 1
 
-        dparams = StatMR.ev_estim_matlab(np.array(wblgen).reshape(-1))
+        wblgen = np.array(wblgen).reshape(-1)
         try:
-            t = StatMR.ev_quant_matlab(self.delta, **dparams)
+            if np.min(wblgen) == 0:
+                wblgen[np.flatnonzero(wblgen == 0)] += 0.00000001
+        except ValueError:
+            pdb.set_trace()
+
+        dparams = StatMR.ev_estim_matlab(wblgen, self.__dist_name)
+        try:
+            t = StatMR.ev_quant_matlab(self.__dist_name, self.delta, **dparams)
         except MatlabExecutionError:
             t = np.inf
 
@@ -332,20 +340,19 @@ class StatMR(BaseEstimator):
 
         np.set_printoptions(linewidth=400)
         if self.v:
-            print("-> Total iterations:", f_range.shape[0]*z_range.shape[0])
+            print("  -> Total iterations:", f_range.shape[0]*z_range.shape[0])
         for f in f_range:
             for z in z_range:
 
                 if self.v:
-                    print("  |_ Iteration #{2:d}: f = {0:0.2f} and z = {1:0.2f}".format(f, z, icount),
+                    print("    |_ Iteration #{2:d}: f = {0:0.2f} and z = {1:0.2f}".format(f, z, icount),
                           file=sys.stdout, flush=True)
 
                 nsamples = remainderX.shape[0]
 
                 t_values = np.zeros((nsamples, 1), dtype=np.float32)
 
-                for i in range(nsamples):
-                    if self.v: print("       |_ sample [{0:05}]".format(i))
+                for i in tqdm(range(nsamples), total=nsamples, desc="      - Training: ", ncols=100):
                     t = self._method_funct(remainderX[i, :], f, z)
                     t_values[i] = t
 
@@ -360,19 +367,19 @@ class StatMR(BaseEstimator):
                 np.seterr('warn')
 
                 if self.v:
-                    print("  -> # samples: {0:d}".format(nsamples), file=sys.stdout, flush=True)
-                    print("  -> M = {0:0.3f}  |  Best = {1:0.3f}".format(m, self._opt_val), file=sys.stdout, flush=True)
+                    print("       -> M = {0:0.3f}  |  Best = {1:0.3f}".format(m, self._opt_val), end="",
+                          file=sys.stdout, flush=True)
 
                 if m >= self._opt_val:
                     if self.v:
-                        print("     -- Updating F: {0:0.2f} -> {1:0.2f}".format(bestf, f), file=sys.stdout, flush=True)
-                        print("     -- Updating Z: {0:0.2f} -> {1:0.2f}".format(bestz, z), file=sys.stdout, flush=True)
+                        print("    -- F: {0:0.2f} -> {1:0.2f} | Z: {2:0.2f} -> {3:0.2f}".format(bestf, f, bestz, z),
+                              file=sys.stdout, flush=True)
                     bestf = f
                     bestz = z
                     self._opt_val = m
 
-                if self.v:
-                    print("  --\n")
+                else:
+                    print()
                 icount += 1
 
         self._F = bestf

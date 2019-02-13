@@ -48,16 +48,16 @@ def compute_transition_frequencies(rankdir, outprefix, scl):
 
             if not prevrel and not rel:
                 t_freq[0] += 1
-                diffs_00.append(diffs[i-1])
+                diffs_00.append((i, diffs[i-1]))
             elif not prevrel and rel:
                 t_freq[1] += 1
-                diffs_01.append(diffs[i-1])
+                diffs_01.append((i, diffs[i-1]))
             elif prevrel and not rel:
                 t_freq[2] += 1
-                diffs_10.append(diffs[i-1])
+                diffs_10.append((i, diffs[i-1]))
             elif prevrel and rel:
                 t_freq[3] += 1
-                diffs_11.append(diffs[i-1])
+                diffs_11.append((i, diffs[i-1]))
 
             prevrel = rel
 
@@ -70,10 +70,12 @@ def compute_transition_frequencies(rankdir, outprefix, scl):
             allmax_i = maxdiff_i
             allmax_f = rkfpath
 
+    dt = dict(names=('i', 'd'),
+              formats=(np.int32, np.float64))
     print(" \n. File: {0:s} -- Position {1:d} : {2:0.2f}".format(allmax_f, allmax_i+s+1, allmax))
     np.savez("{prefix:s}.t_diffs.{start:d}:{end:d}.npz".format(prefix=outprefix, start=s, end=e),
-             diffs_00=np.array(diffs_00), diffs_01=np.array(diffs_01),
-             diffs_10=np.array(diffs_10), diffs_11=np.array(diffs_11))
+             diffs_00=np.array(diffs_00, dtype=dt), diffs_01=np.array(diffs_01, dtype=dt),
+             diffs_10=np.array(diffs_10, dtype=dt), diffs_11=np.array(diffs_11, dtype=dt))
     np.save("{prefix:s}.t_freqs.{start:d}:{end:d}.npy".format(prefix=outprefix, start=s, end=e), t_freq)
 
     return

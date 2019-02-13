@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 
-import os
+import os, sys
 import errno
 import glob
 import time
@@ -13,6 +13,63 @@ from rankutils.rIO import read_rank, rk_dtype
 
 completedir = lambda d: d if d[-1] == '/' else d + "/"
 getbasename = lambda f: os.path.splitext(os.path.basename(f))[0]
+
+
+class ProgressBar:
+
+    def __init__(self, n, updt_every, char_length=50, fill='█'):
+
+        self.__n = n
+        self.__char_length = char_length
+        self.__c = fill
+        self.__updt_last = 0.0
+
+        if updt_every <= 0.01:
+            self.__updt = 0.01
+        elif updt_every > 0.5:
+            self.__updt = 0.5
+        else:
+            self.__updt = updt_every
+
+    @property
+    def updt(self):
+        return self.__updt
+
+    @updt.setter
+    def updt(self, u):
+        if u <= 0.01:
+            self.__updt = 0.01
+        elif u > 0.5:
+            self.__updt = 0.5
+        else:
+            self.__updt = u
+
+    def start(self):
+
+        self.__updt_last = 0.0
+        prefix = "Progress |"
+        not_filled = '-' * self.__char_length
+        suffix = '| {complete:0.1%} Complete'.format(complete=self.__updt_last)
+        print("{0:s}{1:s}{2:s}".format(prefix, not_filled, suffix), end='\r')
+
+    def update(self, i):
+
+        at = (i+1)/self.__n
+
+        if at >= 1.0 or (at - self.__updt_last) >= self.__updt:
+            nchars = int(at * self.__char_length)
+
+            prefix = "Progress |"
+            filled = self.__c * nchars
+            not_filled = '-' * (self.__char_length - nchars)
+            suffix = '| {complete:0.1%} Complete'.format(complete=at)
+
+            print("{0:s}{1:s}{2:s}{3:s}".format(prefix, filled, not_filled, suffix), end='\r')
+            self.__updt_last = at
+
+        if i == self.__n:
+            print('\n')
+
 
 def safe_create_dir(dir):
     """ Safely creates dir, checking if it already exists.
@@ -30,6 +87,37 @@ def safe_create_dir(dir):
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
+
+
+def merge_kfolds_rounds(respath, folds):
+
+    resflist = glob.glob(completedir(respath) + "*.npy")
+    resflist.sort()
+
+    round_res = []
+
+    nf = folds.shape[1]
+
+    for j in range(nf):
+
+        fold = folds[:, j]
+
+        zero_res = np.load(resflist[j*2])
+        one_res = np.load(resflist[j*2 + 1])
+
+        zero_idx = np.argwhere(fold.reshape(-1) == 0).reshape(-1)
+        one_idx = np.argwhere(fold.reshape(-1) == 1).reshape(-1)
+
+        npred = zero_res.shape[1]
+
+        merged_res = np.zeros((zero_res.shape[0] + one_res.shape[0], npred), dtype=np.uint8)
+        merged_res[zero_idx] = zero_res
+        merged_res[one_idx] = one_res
+        round_res.append(merged_res)
+
+    return round_res
+
+
 
 
 def ndarray_bin_to_int(arr):

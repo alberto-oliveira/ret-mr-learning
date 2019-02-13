@@ -4,7 +4,7 @@
 import sys, os
 import argparse
 
-from rankutils.mappings import descriptor_map
+from rankutils.mappings import ranking_type_map
 from rankutils.cfgloader import cfgloader
 from rankutils.evaluation import Evaluator
 
@@ -48,9 +48,9 @@ if __name__ == "__main__":
 
     parser.add_argument("dataset", help="dataset to run experiment.",
                         type=str,
-                        choices=list(descriptor_map.keys()) + ['all'])
+                        choices=list(ranking_type_map.keys()) + ['all'])
 
-    parser.add_argument("descnum", help="descriptor number. If the descriptor number does not exist for the dataset."
+    parser.add_argument("rkgnum", help="descriptor number. If the descriptor number does not exist for the dataset."
                         "exits with error.",
                         type=int)
 
@@ -61,14 +61,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.dataset == "all":
-        dataset_choices = descriptor_map
+        dataset_choices = ranking_type_map
     else:
-        if args.descnum in descriptor_map[args.dataset]:
+        if args.descnum in ranking_type_map[args.dataset]:
             dataset_choices = dict()
             dataset_choices[args.dataset] = [args.descnum]
         else:
             print("Unavailable descriptor number {0:d} for dataset {1:s}.".format(args.descnum, args.dataset))
-            print("Choise are: ", descriptor_map[args.dataset], "   Exiting\n---")
+            print("Choise are: ", ranking_type_map[args.dataset], "   Exiting\n---")
             sys.exit(2)
 
     run_evaluation(dataset_choices, args.evalconfig, args.outprefix)
