@@ -1,0 +1,17 @@
+*.rk
+results/
+misc./
+output/
+input-ranks/
+input-labels/
+input-fv/
+condor/
+source/deprecated/
+source/notebooks/.ipynb_checkpoints/
+source/notebooks/output/
+scripts/output/
+*/__pycache__/
+*/*/__pycache__/
+.idea/
+*.pdf
+*.out
