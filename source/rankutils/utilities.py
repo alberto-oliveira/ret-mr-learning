@@ -158,7 +158,7 @@ def makeDlabel(d):
                                                                              d['loc'])
 
 
-def get_label(name):
+def get_classname(name):
     parts = name.split("_")
     i = 0
 
@@ -169,9 +169,21 @@ def get_label(name):
     return "_".join(parts[:i])
 
 
-def get_query_label(qname):
+def get_query_classname(qname):
     suffix = qname.split("_", 1)[1]
-    return get_label(suffix)
+    return get_classname(suffix)
+
+
+# Generates a modification of a set of binary labels such that f% of the bits are
+# shifted to the other state. Bits are randomly chosen, in an uniform manner
+def gen_mod(l, f):
+    l_ = l.copy().reshape(-1)
+    i = np.random.permutation(l.size)
+    total = int(np.floor(f * l.size))
+    i = i[:total]
+    l_[i] = (l_[i] - 1) / 255
+
+    return l_.reshape(l.shape)
 
 
 def read_and_convert(rkfpath, limit=np.newaxis, scale=False, convert=False):

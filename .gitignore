@@ -5,6 +5,8 @@ output/
 input-ranks/
 input-labels/
 input-fv/
+input-mod_labels/
+output-agg/
 condor/
 source/deprecated/
 source/notebooks/.ipynb_checkpoints/

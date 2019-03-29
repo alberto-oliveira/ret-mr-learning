@@ -6,7 +6,7 @@ sys.path.append("../source/")
 import argparse
 import glob
 
-from rankutils.utilities import get_label, get_query_label, completedir
+from rankutils.utilities import get_classname, get_query_classname, completedir
 from rankutils.rIO import read_rank
 
 import numpy as np
@@ -14,7 +14,7 @@ import numpy as np
 
 def generate_full_labeling(rankdir, outfname, l):
 
-    lfun = np.vectorize(get_label)
+    lfun = np.vectorize(get_classname)
 
     rkflist = glob.glob(rankdir + "*.rk")
     rkflist.sort()
@@ -27,7 +27,7 @@ def generate_full_labeling(rankdir, outfname, l):
         rk = read_rank(rkfpath)
         names = rk['name'][:l]
 
-        qcatg = get_query_label(os.path.basename(rkfpath))
+        qcatg = get_query_classname(os.path.basename(rkfpath))
         rkcatg = lfun(names)
 
         labels.append((rkcatg == qcatg).astype(np.uint8))

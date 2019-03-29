@@ -114,11 +114,13 @@ def rank_features_circ_deltaik(scores, i, k, abs=False, norm=False):
 
     :param scores: numpy array with ranked scores
     :param i: integer defining anchor position i
-    :param k: integer defining final position k
+    :param k: integer defining final position k. Should be >= than i
     :return: numpy array of features
     """
 
     featlist = []
+
+    assert k >= i, "The final position k:<{0:d}> should be >= the anchor position i:<{1:d}>".format(k, i)
 
     if k >= scores.shape[0]:
         k = scores.shape[0] - 1

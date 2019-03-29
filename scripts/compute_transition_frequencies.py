@@ -6,7 +6,7 @@ sys.path.append("../source/")
 import glob
 import argparse
 
-from rankutils.utilities import get_query_label, get_label, completedir, read_and_convert
+from rankutils.utilities import get_query_classname, get_classname, completedir, read_and_convert
 
 import numpy as np
 
@@ -33,17 +33,17 @@ def compute_transition_frequencies(rankdir, outprefix, scl):
 
         print("> ", os.path.basename(rkfpath))
 
-        qcat = get_query_label(os.path.basename(rkfpath))
+        qcat = get_query_classname(os.path.basename(rkfpath))
         scores, names, _ = read_and_convert(rkfpath, scale=scl, convert=True)
         scores = scores[s:e]
         names = names[s:e]
 
-        prevrel = (get_label(names[0]) == qcat)
+        prevrel = (get_classname(names[0]) == qcat)
 
         diffs = scores[0:-1] - scores[1:]
 
         for i in range(1, scores.size):
-            cat = get_label(names[i])
+            cat = get_classname(names[i])
             rel = (cat == qcat)
 
             if not prevrel and not rel:

@@ -259,12 +259,10 @@ class Extractor:
                     fvector = np.hstack(fvector).reshape(1, -1)
 
                     assert fvector.size == self.__fv_dim, "Inconsistent feature vector size <{0:03d}> with " \
-                                                          "precomputed feature vector dimension <{1:03d}> ".format(fvector.size, self.__fv_dim)
+                                                              "precomputed feature vector dimension <{1:03d}> ".format(fvector.size, self.__fv_dim)
 
                     outlabels[r, i, v, 0] = rklabels[r]
                     outfeatures[r, i, v] = fvector
-
-                #pdb.set_trace()
 
 
         #pdb.set_trace()

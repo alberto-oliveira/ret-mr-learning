@@ -8,7 +8,7 @@ import glob
 import numpy as np
 
 import matplotlib
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from sklearn.metrics import matthews_corrcoef, accuracy_score, f1_score, confusion_matrix
@@ -47,7 +47,54 @@ def parsecolor(colorstr):
     return color
 
 
-def norm_acc(y_true, y_pred):
+def multi_mcc(y_true, y_pred):
+
+    assert y_true.shape == y_pred.shape, "Inconsistent shapes between true labels <{0:s}> and predicted " \
+                                         "labels <{1:s}>.".format(str(y_true.shape), str(y_pred.shape))
+
+    nrows = y_true.shape[0]
+    mccs = np.zeros(nrows, dtype=np.float64)
+
+    for i in range(nrows):
+
+        y_true_row = y_true[i]
+        y_pred_row = y_pred[i]
+
+        m = matthews_corrcoef(y_true_row, y_pred_row)
+
+        mccs[i] = m
+
+    return mccs, np.mean(mccs)
+
+
+def multi_norm_acc(y_true, y_pred, get_rates=False):
+
+    assert y_true.shape == y_pred.shape, "Inconsistent shapes between true labels <{0:s}> and predicted " \
+                                         "labels <{1:s}>.".format(str(y_true.shape), str(y_pred.shape))
+
+    nrows = y_true.shape[0]
+    naccs = np.zeros(nrows, dtype=np.float64)
+    tprs = np.zeros(nrows, dtype=np.float64)
+    tnrs = np.zeros(nrows, dtype=np.float64)
+
+    for i in range(nrows):
+
+        y_true_row = y_true[i]
+        y_pred_row = y_pred[i]
+
+        nacc, tpr, tnr = norm_acc(y_true_row, y_pred_row, True)
+
+        naccs[i] = nacc
+        tprs[i] = tpr
+        tnrs[i] = tnr
+
+    if not get_rates:
+        return naccs, np.mean(naccs)
+    else:
+        return naccs, np.mean(naccs), tprs, np.mean(tprs), tnrs, np.mean(tnrs)
+
+
+def norm_acc(y_true, y_pred, get_rates=False):
     assert y_true.shape == y_pred.shape, "Inconsistent shapes between true labels <{0:s}> and predicted " \
                                          "labels <{1:s}>.".format(str(y_true.shape), str(y_pred.shape))
 
@@ -55,6 +102,8 @@ def norm_acc(y_true, y_pred):
 
     if cfmat.size == 1:
         nacc = 1.0
+        TPR = 1.0
+        TNR = 1.0
 
     else:
         TN = cfmat[0, 0]
@@ -73,10 +122,12 @@ def norm_acc(y_true, y_pred):
         else:
             TPR = 0.0
 
-
         nacc = (TNR + TPR) / 2
 
-    return nacc
+    if not get_rates:
+        return nacc
+    else:
+        return nacc, TPR, TNR
 
 
 def comp_recall(relevance):
@@ -232,6 +283,9 @@ class Evaluator:
 
             assert mdata['irp_results'], "Empty IRP Predicted Labels at: " + self.outpath + "{0:s}/".format(nm)
 
+            for i in range(len(mdata['irp_results'])):
+                mdata['irp_results'][i] = mdata['irp_results'][i][:, 0:self.__k]
+
     def evaluate(self):
 
         np.set_printoptions(linewidth=300, precision=4)
@@ -260,8 +314,8 @@ class Evaluator:
                 irp_true_labels_single = self.__gt_irp_labels[i]
                 irp_pred_labels_single = irp_pred_labels[i]
 
-                assert irp_true_labels_single.shape == irp_pred_labels_single.shape, "Inconsistent shapes between true" \
-                                                                                     "and predicted labels"
+                assert irp_true_labels_single.shape == irp_pred_labels_single.shape, "Inconsistent shapes between true <{0:s}> " \
+                                                                                     "and predicted <{1:s}> labels".format(str(irp_true_labels_single.shape), str(irp_pred_labels_single.shape))
 
                 nex = irp_true_labels_single.shape[0]
 

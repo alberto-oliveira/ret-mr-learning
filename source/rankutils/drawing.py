@@ -27,7 +27,7 @@ def colors_from_cmap(cmap_name, values, bounds=(0.0, 1.0)):
         upper = 1.0
 
     if not isinstance(values, np.ndarray):
-        aux = np.array([values])
+        aux = np.array([values], dtype=np.float64)
     else:
         aux = values
 
