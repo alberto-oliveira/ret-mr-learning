@@ -144,7 +144,7 @@ def run_aggregation(dataset, aggconfig):
     # non-required path parameters
     rootlabelpath = aggcfg.get('DEFAULT', 'rootlabelpath', fallback='')
     labelfolder = aggcfg.get('DEFAULT', 'labelfolder', fallback='')
-    fulllabelpath = "{0:s}/{1:s}/{2:s}/".format(rootlabelpath, dataset, labelfolder)
+    fulllabelpath = "{0:s}/{1:s}/{2:s}/".format(pathcfg.get('DEFAULT', 'agglbldir'), dataset, labelfolder)
 
     # output parameters
     outpath = aggcfg.get('DEFAULT', 'outpath')

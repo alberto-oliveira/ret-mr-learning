@@ -7,6 +7,7 @@ input-labels/
 input-fv/
 input-mod_labels/
 output-agg/
+source/path_2.cfg
 condor/
 source/deprecated/
 source/notebooks/.ipynb_checkpoints/
