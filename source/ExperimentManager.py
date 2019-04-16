@@ -4,10 +4,12 @@
 import sys, os
 import glob
 import pickle
+import shutil
 
 from collections import OrderedDict
 from tqdm import tqdm
 
+from sklearn.model_selection import RepeatedStratifiedKFold, RepeatedKFold
 
 from rankutils.labeling import *
 from rankutils.cfgloader import *
@@ -21,7 +23,10 @@ import time
 import ipdb as pdb
 
 import numpy as np
-np.random.seed(93311)
+
+bseed = 93311
+
+np.random.seed(bseed)
 
 class ExperimentManager:
 
@@ -409,6 +414,147 @@ class ExperimentManager:
 
         return
 
+    def run_statistical_mr_v2(self, expconfig, sampling=-1.0, overwrite=False):
+
+        from rankutils.stat_mr import StatMR
+
+        expcfg = cfgloader(expconfig)
+
+        expname = expcfg.get('IRP', 'expname')
+        dist_name = expcfg.get('IRP', 'distribution')
+        method = expcfg.get('IRP', 'method')
+        opt = expcfg.get('IRP', 'optimization')
+        k = expcfg.getint('DEFAULT', 'topk')
+
+        if method == 'fixed':
+            fvals = [0, 0.005, 0.05, 0.15, 0.30, 0.50, 0.75]
+            zvals = [0.80, 1.0]
+        elif method == 'mixt':
+            fvals = [0, 0.005, 0.05, 0.15, 0.30, 0.50, 0.75]
+            zvals = [0.80, 1.0]
+
+        for dataset in self.__expmap:
+            for rktpnum in self.__expmap[dataset]:
+                dkey = "{0:s}_{1:03d}".format(dataset, rktpnum)
+                rktpname = self.__pathcfg[dkey]['rktpdir']
+
+                print(". Running <Statistical MR - IRP> for ", dataset, " -- ", rktpname)
+                print(". Experiment name: ", expname)
+
+                #fold_idx = np.load(glob.glob(self.__pathcfg[dkey]['rank'] + "*folds.npy")[0])
+                #n, rounds = fold_idx.shape
+
+                rounds = 5
+
+                # Loads and preprocesses the ranks. The result is an NxM matrix, where N is the
+                # number of ranks and M is an arbitrary maximum size for the processed ranks.
+                # M is used to homogenize the size of the ranks
+                ranks = preprocess_ranks(self.__pathcfg[dkey]['rank'], maxsz=15000)
+                n = ranks.shape[0]
+
+                labels = np.load(glob.glob(self.__pathcfg[dkey]['label'] + '*{0:s}*'.format(rktpname))[0])
+
+                assert n == labels.shape[0], "Inconsistent number of indexes <{0:d}> and labels <{1:d}>."\
+                                             .format(n, labels.shape[0])
+
+                assert labels.shape[1] >= k, "Inconsistent number of labels <{0:d}> and k <{1:d}>."\
+                                             .format(labels.shape[1], k)
+
+                if labels.shape[1] > k:
+                    labels = labels[:, 0:k]
+
+                outdir = self.__pathcfg[dkey]['output'] + "{0:s}/".format(expname)
+
+                if os.path.isdir(outdir):
+                    shutil.rmtree(outdir)
+
+                safe_create_dir(outdir)
+
+                # Stores the predicted labels for each round. The third dimension of size <rounds> aggregated the
+                # predictions for both splits. To differentiate the train/test splits, the 'splits' array should
+                # be used
+                predicted = np.zeros((rounds, n, k), dtype=np.uint8)
+
+                # Array storing train-test split for each sample, of each position, in each round
+                # n is the number of samples
+                # k is the number of top positions which we perform relevance prediction for. Retained in this function
+                #      for compatibility, but will always be the same for all 0 <= i <= k
+                # r is the number of rounds in which we divide the samples in two splits
+                # Values of 0 and 1 differentiate the split at that round. By convention, 0 is train first, test last
+                # and 1 is test first, train last
+                splits = np.zeros((rounds, n, k), dtype=np.uint8)
+
+                rstratkfold = RepeatedKFold(n_splits=2, n_repeats=rounds, random_state=bseed)
+                splitgen = rstratkfold.split(ranks)
+
+                for r in range(rounds):
+                    print("  -> Starting round #:", r)
+
+                    # Run the two splits for the round, alternating train/test
+                    for spl in range(2):
+
+                        print("   -> split #{0:d}".format(spl+1))
+                        train_idx, test_idx = next(splitgen)
+
+                        # Train is fold 1 and Test is fold 0
+                        TEST_X = ranks[test_idx, :]
+                        mr_path = "{outdir:s}{distname:s}-{method:s}_r{round:03d}_{split:03d}.mr".format(outdir=outdir,
+                                                                                                  distname=dist_name,
+                                                                                                  round=r,
+                                                                                                  method=method,
+                                                                                                  split=spl)
+
+                        # Let's try to open the saved classifier file. If not possible, we've got to retrain it.
+                        try:
+                            if overwrite:
+                                raise FileNotFoundError
+
+                            with open(mr_path, 'rb') as inpf:
+                                stat_mr = pickle.load(inpf)
+
+                        except FileNotFoundError:
+                            stat_mr = StatMR(dist_name=dist_name, k=k, method=method, opt_metric=opt, verbose=True)
+                            TRAIN_X = ranks[train_idx, :]
+                            TRAIN_y = labels[train_idx, :]
+
+                            if sampling > 0.0 and TRAIN_X.shape[0] >= 1000:
+                                s = np.int(sampling*TRAIN_X.shape[0])
+                                sample_i = np.random.choice(np.arange(TRAIN_X.shape[0]), size=s, replace=False)
+
+                                TRAIN_X = TRAIN_X[sample_i, :]
+                                TRAIN_y = TRAIN_y[sample_i, :]
+
+                            stat_mr.fit(TRAIN_X, TRAIN_y, f_val=fvals, z_val=zvals)
+
+                        print("     -> Split #{0:d} -- (F:{1:0.2f}, Z:{2:0.2f}): M = {3:0.3f}"
+                              .format(spl, stat_mr.F, stat_mr.Z, stat_mr.opt_val))
+
+                        pred_y, _ = stat_mr.predict(TEST_X)
+
+                        assert predicted[r, test_idx].shape == pred_y.shape, \
+                            "The shape of the output prediction <{0:s}> hould equal to the shape of the output array" \
+                            "<{1:s}>.".format(str(pred_y.shape), str(predicted[r, test_idx].shape))
+
+                        predicted[r, test_idx] = pred_y
+
+                        # Let's save this predictor
+                        with open(mr_path, 'wb') as outf:
+                            pickle.dump(stat_mr, outf)
+                        print(" Done split!\n")
+
+                    # Remember -- Value 0 is train 1st test 2nd, while value 1 is test 1st train 2nd
+                    # Since train_idx is storing the training indexes for train 2nd, we change those to 1, at round
+                    # <r> and  for all rank positions
+                    splits[r, train_idx, :] = 1
+
+                outfile = "{0:s}{1:s}_{2:d}rounds2splits_top{3:d}_irp.npy".format(outdir, dkey, rounds, k)
+                np.save(outfile, predicted)
+
+                # saving the fold division
+                np.save("{0:s}train_test_splits.npy".format(outdir), splits)
+
+        return
+
     def run_learning_mr(self, expconfig):
 
         expcfg = cfgloader(expconfig)
@@ -440,7 +586,7 @@ class ExperimentManager:
                                                                                            cfname=cname)
                 safe_create_dir(outdir)
 
-
+                validation_acc = []
                 for r in tqdm(range(rounds), ncols=100, desc='   |_Round', total=rounds):
                     #print("  -> Starting round #:", r)
                     idx_0 = np.flatnonzero(fold_idx[:, r] == 0).reshape(-1)
@@ -459,7 +605,11 @@ class ExperimentManager:
 
                         # run classification already performs proper fold division. It suffices that a list is passed
                         # whereby each position contains the features according to the fold
-                        r_predicted = run_two_set_classification(p_features, p_labels, [idx_0, idx_1], cname, True)
+                        if m != 0:
+                            r_predicted, vacc = run_two_set_classification(p_features, p_labels, [idx_0, idx_1], cname, True)
+                            validation_acc.append(vacc)
+                        else:
+                            r_predicted = run_two_set_classification(p_features, p_labels, [idx_0, idx_1], cname, False)
 
                         # Fold 0 is test
                         predicted[0].append(r_predicted[0])
@@ -485,6 +635,112 @@ class ExperimentManager:
 
                     outfile = "{0:s}{1:s}_r{2:03d}_001_top{3:d}_irp.npy".format(outdir, dkey, r, k)
                     np.save(outfile, predicted[1])
+
+                # If validation_acc has elements, save an array of its vstacked form
+                validation_acc = np.vstack(validation_acc)
+                if validation_acc.size != 0:
+                    np.save("{0:s}validation_accuracy.npy".format(outdir), validation_acc)
+
+                feat_pack.close()
+                print('\n')
+
+        return
+
+    def run_learning_mr_v2(self, expconfig):
+
+        expcfg = cfgloader(expconfig)
+
+        expname = expcfg['DEFAULT']['expname']
+        cname = expcfg['IRP']['classifier']
+        k = expcfg['DEFAULT'].getint('topk')
+        featpack = expcfg.get('DEFAULT', 'features', fallback=expname)
+
+        rounds = 5
+
+        for dataset in self.__expmap:
+            for rktpnum in self.__expmap[dataset]:
+                dkey = "{0:s}_{1:03d}".format(dataset, rktpnum)
+                rktpname = self.__pathcfg[dkey]['rktpdir']
+
+                print(". Running <Learning MR - IRP> for ", dataset, " -- ", rktpname)
+                print(". Experiment name: ", expname)
+
+                feat_pack = np.load(glob.glob(self.__pathcfg[dkey]['feature'] + "*{0:s}*".format(featpack))[0])
+                nk, n, v, d = feat_pack['features'].shape
+
+                assert v == 1, "learning v2 does not working with multi-variation approach. " \
+                               "Number of variations is <{0:d}>".format(v)
+
+                features = feat_pack['features'].reshape(nk, n, d)
+                labels = feat_pack['labels'].reshape(nk, n, 1)
+
+                assert (features.shape[0] == labels.shape[0] and features.shape[1] == labels.shape[1]),\
+                        "inconsistent shapes between features and labels. "
+
+                outdir = self.__pathcfg[dkey]['output'] + "{expname:s}.{cfname:s}/".format(expname=expname,
+                                                                                           cfname=cname)
+
+                if os.path.isdir(outdir):
+                    shutil.rmtree(outdir)
+
+                safe_create_dir(outdir)
+
+                # Stores the predicted labels for each round. The third dimension of size <rounds> aggregated the
+                # predictions for both splits. To differentiate the train/test splits, the 'splits' array should
+                # be used
+                predicted = np.zeros((rounds, n, k), dtype=np.uint8)
+
+                # Array storing train-test split for each sample, of each position, in each round
+                # n is the number of samples
+                # k is the number of top positions which we perform relevance prediction for
+                # r is the number of rounds in which we divide the samples in two splits
+                # Values of 0 and 1 differentiate the split at that round. By convention, 0 is train first, test last
+                # and 1 is test first, train last
+                splits = np.zeros((rounds, n, k), dtype=np.uint8)
+
+                for m in tqdm(range(k), ncols=100, desc='        |_Position', total=k):
+
+                    p_features = features[m]
+                    p_labels = labels[m]
+
+                    rstratkfold = RepeatedStratifiedKFold(n_splits=2, n_repeats=rounds, random_state=bseed)
+                    splitgen = rstratkfold.split(p_features, p_labels)
+
+                    for r in tqdm(range(rounds), ncols=100, desc='   |_Round', total=rounds):
+                        #pdb.set_trace()
+
+                        # 1st split
+                        train_idx, test_idx = next(splitgen)
+
+                        pred_y = run_classification(p_features, p_labels, [train_idx, test_idx], cname, False)
+
+                        # test_idx has the sample indexes which have been predicted for the 1st split of round <r> and
+                        # for position <m> of the rank. We change those values in the <predicted> array to match the
+                        # prediction
+                        predicted[r, test_idx, m] = pred_y
+                        # ---------
+
+                        # 2nd split -- train from 1st split is test here, and vice-versa
+                        train_idx, test_idx = next(splitgen)
+
+                        pred_y = run_classification(p_features, p_labels, [train_idx, test_idx], cname, False)
+
+                        # test_idx has the sample indexes which have been predicted for the 2nd split of round <r> and
+                        # for position <m> of the rank. We change those values in the <predicted> array to match the
+                        # prediction
+                        predicted[r, test_idx, m] = pred_y
+                        # ---------
+
+                        # Remember -- Value 0 is train 1st test 2nd, while value 1 is test 1st train 2nd
+                        # Since train_idx is storing the training indexes for train 2nd, we change those to 1, at round
+                        # <r> and for rank position <m>
+                        splits[r, train_idx, m] = 1
+
+                outfile = "{0:s}{1:s}_{2:d}rounds2splits_top{3:d}_irp.npy".format(outdir, dkey, rounds, k)
+                np.save(outfile, predicted)
+
+                # saving the fold division
+                np.save("{0:s}train_test_splits.npy".format(outdir), splits)
 
                 feat_pack.close()
                 print('\n')

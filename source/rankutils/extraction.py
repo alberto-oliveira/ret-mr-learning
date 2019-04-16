@@ -39,7 +39,6 @@ def generate_rank_variations(rank, labels, nvar, vfactor):
     return variations
 
 
-
 class Extractor:
 
     def __init__(self, cfg, namefpath='', distfdir=''):
@@ -119,9 +118,11 @@ class Extractor:
             raise ValueError("Statistical (<emd>, <query_bhatt>) features requires a valid fit parameters array. "
                              "Did you pass a valid distfdir argument?")
 
-
     def update_namelist(self, namefpath):
-        self.__namelist = np.loadtxt(namefpath, usecols=0, dtype='U100')
+        try:
+            self.__namelist = np.loadtxt(namefpath, usecols=0, dtype='U100')
+        except OSError:
+            warnings.warn("Namelist file not found.", RuntimeWarning)
         return
 
     def update_fit_params(self, distfdir):

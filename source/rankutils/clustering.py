@@ -4,6 +4,8 @@
 import numpy as np
 from jenkspy import jenks_breaks
 
+import ipdb as pdb
+
 
 def clustering_1d(clalias, **ka):
 
@@ -106,10 +108,11 @@ def random_clustering(data, c):
 
 def fixed_points_clustering(data, c):
 
+    #pdb.set_trace()
     if c > data.size:
         raise ValueError("Number of clusters <{0:d}> must be less than total data size <{1:d}>".format(c, data.size))
 
-    step = int(np.round(data.size / (c-1)))
+    step = int(np.floor(data.size / (c-1)))
     idx = np.arange(0, step*c, step)
 
     if idx[-1] >= data.size:

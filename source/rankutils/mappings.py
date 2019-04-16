@@ -9,7 +9,8 @@ ranking_type_map = OrderedDict(places365=[1, 2, 3, 4, 5],
                                vggfaces=[1, 2, 3, 4, 5],
                                imagenet=[1, 2, 3, 4],
                                oxford=[1],
-                               unicamp=[1])
+                               unicamp=[1],
+                               MPEG7=[1, 2, 3, 4, 5])
 
 baseline_map = dict(ran=baseline_ran,
                     ranp=baseline_ran,

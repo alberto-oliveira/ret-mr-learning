@@ -83,11 +83,11 @@ def aggregate(method, **kwargs):
 
     elif method == 'combSUM_avgw':
         aggr_names, aggr_scores = aggr_combSUM_post_avgw(kwargs['names'], kwargs['scores'], kwargs['labels'],
-                                                         f=kwargs['f'], weights=None)
+                                                         f=kwargs['f'])
 
     elif method == 'combSUM_majw':
         aggr_names, aggr_scores = aggr_combSUM_post_majw(kwargs['names'], kwargs['scores'], kwargs['labels'],
-                                                         f=kwargs['f'], weights=None)
+                                                         f=kwargs['f'])
 
     elif method == 'combMNZ':
         aggr_names, aggr_scores = aggr_combMNZ(kwargs['names'], kwargs['scores'], weights=None)
@@ -118,6 +118,9 @@ def aggregate(method, **kwargs):
 
     elif method == 'combMINMAX':
         aggr_names, aggr_scores = aggr_combMINMAX(kwargs['names'], kwargs['scores'])
+
+    elif method == 'borda':
+        aggr_names, aggr_scores = aggr_bordaCount(kwargs['names'], kwargs['scores'], kwargs['standings'])
 
     return aggr_names, aggr_scores
 
@@ -215,9 +218,9 @@ def run_aggregation(dataset, aggconfig):
             scores.append(1 - normalize(rank['score'].reshape(1, -1)).reshape(-1))
             labels.append(labelmap[key][i, 0:k])
 
-        tbl_names, tbl_scores, tbl_labels = create_aggr_table(names, scores, labels, absent=abst)
+        tbl_names, tbl_scores, tbl_labels, tbl_stds = create_aggr_table(names, scores, labels, absent=abst)
 
-        kwargs.update(dict(names=tbl_names, scores=tbl_scores, labels=tbl_labels))
+        kwargs.update(dict(names=tbl_names, scores=tbl_scores, labels=tbl_labels, standings=tbl_stds))
 
         aggr_names, aggr_scores = aggregate(aggmethod, **kwargs)
 

@@ -157,7 +157,8 @@ def irp_results_barv_draw(data, meas_key, method_key='set', ax=None, textfmt="{0
     return
 
 
-def irp_results_barh_draw(data, meas_key, method_key='set', ax=None, textfmt="{0:0.3f}", xlabel=None, ylabel=None):
+def irp_results_barh_draw(data, meas_key, method_key='set', ax=None, textfmt="{0:0.3f}", xlabel=None, ylabel=None,
+                          start_pos=1):
     measure, idx, blim = measure_map[meas_key]
 
     #gettc = lambda v: 'black' if np.linalg.norm(v[0:3]) >= 0.8 else 'white'
@@ -175,7 +176,7 @@ def irp_results_barh_draw(data, meas_key, method_key='set', ax=None, textfmt="{0
     # Enqueues the index of line plots to plot after plotting the bars
     line_queue = []
 
-    xpos = 1
+    xpos = start_pos
 
     handles = []
     labels = []
@@ -222,7 +223,7 @@ def irp_results_barh_draw(data, meas_key, method_key='set', ax=None, textfmt="{0
         ax.text(0.02, val, "{0:0.3f}".format(val), fontsize=12, color=mdata['drawargs']['color'],
                 horizontalalignment='left', verticalalignment='top')
 
-    ax.plot([0.0, 0.0], [0.5, len(labels) + 0.5], linewidth=2, color='black')
+    ax.plot([0.0, 0.0], [0.5, (xpos-1) + 0.5], linewidth=2, color='black')
 
     ax.set_xlim(left=blim, right=1.0)
 
@@ -231,7 +232,7 @@ def irp_results_barh_draw(data, meas_key, method_key='set', ax=None, textfmt="{0
 
     if ylabel:
         ax.set_ylabel(ylabel)
-    ax.set_ylim(0.5, len(labels) + 0.5)
+    ax.set_ylim(0.5, (xpos-1) + 0.5)
     ax.set_yticks(np.arange(1, len(labels) + 1))
     ax.set_yticklabels(labels)
     ax.invert_yaxis()

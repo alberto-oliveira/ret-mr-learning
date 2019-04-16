@@ -2,7 +2,7 @@
 #-*- coding: utf-8 -*-
 
 import numpy as np
-#import ipdb as pdb
+import ipdb as pdb
 
 
 def create_aggr_table(rnamelist, rscorelist, rlabellist, absent=0):
@@ -24,6 +24,8 @@ def create_aggr_table(rnamelist, rscorelist, rlabellist, absent=0):
     # (3) Present in rank, but not predicted -- label = 0
     # (4) Not present in rank -- label = args('absent')
     aggr_labels = np.zeros((aggr_names.size, nranks), dtype=np.int32) + absent
+
+    aggr_standings = np.zeros((aggr_names.size, nranks), dtype=np.int32)
 
     for i in range(nranks):
 
@@ -50,7 +52,9 @@ def create_aggr_table(rnamelist, rscorelist, rlabellist, absent=0):
             elif np.isnan(l):
                 aggr_labels[pos, i] = 0
 
-    return aggr_names, aggr_scores, aggr_labels
+            aggr_standings[pos, i] += (nrows-k)
+
+    return aggr_names, aggr_scores, aggr_labels, aggr_standings
 
 
 def aggr_combSUM(aggr_names, aggr_scores, weights=None):
@@ -98,26 +102,23 @@ def aggr_combSUM_pre(aggr_names, aggr_scores, aggr_labels, f=0.0, balance=0, wei
     return aggr_names[sidx], sum_scores[sidx]
 
 
-def aggr_combSUM_post_avgw(aggr_names, aggr_scores, aggr_labels, f=0.0, weights=None):
+def aggr_combSUM_post_avgw(aggr_names, aggr_scores, aggr_labels, f=0.0):
 
     # For the sum, we use an auxiliary version of the aggr_scores table which
     # replaces the -1s for 0s
     aggr_scores_z = np.ma.array(aggr_scores, mask=aggr_scores == -1)
 
-    if not weights:
-        weights = np.ones(aggr_scores.shape[0], dtype=np.int32)
-
     # Post weighting
     label_weights = (f * np.mean(aggr_labels, axis=1)) + 1
 
     #pdb.set_trace()
-    sum_scores = np.array(np.ma.sum(aggr_scores_z, axis=1) * label_weights * weights)
+    sum_scores = np.array(np.ma.sum(aggr_scores_z, axis=1) * label_weights)
     sidx = np.argsort(sum_scores)[::-1]
 
     return aggr_names[sidx], sum_scores[sidx]
 
 
-def aggr_combSUM_post_majw(aggr_names, aggr_scores, aggr_labels, f=0.0, weights=None):
+def aggr_combSUM_post_majw(aggr_names, aggr_scores, aggr_labels, f=0.0):
 
     # For the sum, we use an auxiliary version of the aggr_scores table which
     # replaces the -1s for 0s
@@ -125,15 +126,12 @@ def aggr_combSUM_post_majw(aggr_names, aggr_scores, aggr_labels, f=0.0, weights=
 
     aggr_labels_ = np.ma.array(aggr_labels, mask=aggr_scores_z.mask)
 
-    if not weights:
-        weights = np.ones(aggr_scores.shape[0], dtype=np.int32)
-
     #pdb.set_trace()
 
     # Post weighting
     label_weights = (f * np.array(np.clip(np.ma.sum(aggr_labels_, axis=1), -1, 1))) + 1
 
-    sum_scores = np.array(np.ma.sum(aggr_scores_z, axis=1) * label_weights * weights)
+    sum_scores = np.array(np.ma.sum(aggr_scores_z, axis=1) * label_weights)
     sidx = np.argsort(sum_scores)[::-1]
 
     return aggr_names[sidx], sum_scores[sidx]
@@ -281,3 +279,19 @@ def aggr_combMEDIAN_plus(aggr_names, aggr_scores, aggr_labels, f=0.0):
 
     return aggr_names[sidx], median_scores[sidx]
 
+
+def aggr_bordaCount(aggr_names, aggr_scores, aggr_standings):
+
+    aggr_scores_mask = np.ma.array(aggr_scores, mask=aggr_scores == -1)
+
+    # Use the mean score to break ties
+    mean_scores = np.array(np.ma.mean(aggr_scores_mask, axis=1))
+
+    borda_scores = np.sum(aggr_standings, axis=1)
+
+    final_scores = borda_scores + mean_scores
+    sidx = np.argsort(final_scores)[::-1]
+
+    #pdb.set_trace()
+
+    return aggr_names[sidx], final_scores[sidx]

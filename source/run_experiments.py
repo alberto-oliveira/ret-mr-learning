@@ -23,9 +23,9 @@ def run_experiment(dataset_choices, expcfgfile, sval, ovw):
     #print(e_manager.expmap)
 
     if expcfg['DEFAULT']['type'] == 'stat':
-        e_manager.run_statistical_mr(expcfgfile, sampling=sval, overwrite=ovw)
+        e_manager.run_statistical_mr_v2(expcfgfile, sampling=sval, overwrite=ovw)
     if expcfg['DEFAULT']['type'] == 'learn':
-        e_manager.run_learning_mr(expcfgfile)
+        e_manager.run_learning_mr_v2(expcfgfile)
     if expcfg['DEFAULT']['type'] == 'single_learn':
         e_manager.run_single_learning_mr(expcfgfile)
     if expcfg['DEFAULT']['type'] == 'stat_pos':

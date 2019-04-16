@@ -18,9 +18,9 @@ from rankutils.utilities import safe_create_dir
 
 # Measure = (<Name of measure>, <measure index in results>, <bottom limit of measure>)
 measure_map = dict(ACC=('accuracy', 0, 0.0),
-                   NACC=('norm accuracy', 1, 0.0),
-                   F1=('f1 score', 2, 0.0),
-                   MCC=('matthews correlation coefficient', 3, -1.0))
+                   NACC=('norm accuracy', 0, 0.0),
+                   F1=('f1 score', 1, 0.0),
+                   MCC=('matthews correlation coefficient', 2, -1.0))
 
 
 def parsecolor(colorstr):
@@ -45,6 +45,25 @@ def parsecolor(colorstr):
                          "<r>,<g>,<b> or <r>,<g>,<b>,<a>. In RGB or RGBA the range is 0-255")
 
     return color
+
+def multi_f1(y_true, y_pred):
+
+    assert y_true.shape == y_pred.shape, "Inconsistent shapes between true labels <{0:s}> and predicted " \
+                                         "labels <{1:s}>.".format(str(y_true.shape), str(y_pred.shape))
+
+    nrows = y_true.shape[0]
+    f1scores = np.zeros(nrows, dtype=np.float64)
+
+    for i in range(nrows):
+
+        y_true_row = y_true[i]
+        y_pred_row = y_pred[i]
+
+        f = f1_score(y_true_row, y_pred_row)
+
+        f1scores[i] = f
+
+    return f1scores, np.mean(f1scores)
 
 
 def multi_mcc(y_true, y_pred):
@@ -122,7 +141,12 @@ def norm_acc(y_true, y_pred, get_rates=False):
         else:
             TPR = 0.0
 
-        nacc = (TNR + TPR) / 2
+        if TN + FP == 0:
+            nacc = TPR
+        elif TP + FN == 0:
+            nacc = TNR
+        else:
+            nacc = (TNR + TPR) / 2
 
     if not get_rates:
         return nacc
@@ -174,11 +198,10 @@ class Evaluator:
         if self.key and pathcfg:
 
             self.rktpalias = paths[self.key]['rktpdir']
+            self.rkpath = paths[self.key]['rank']
             self.lblpath = paths[self.key]['label']
             self.outpath = paths[self.key]['output']
             self.respath = paths[self.key]['result']
-            aux = glob.glob(paths[self.key]['rank'] + '/*folds.npy')[0]
-            self.foldidx = np.load(aux)
 
         self.evalname = ""
 
@@ -193,7 +216,7 @@ class Evaluator:
             self.load_configurations(evalcfgfile)
 
             if self.key and self.lblpath and self.outpath and self.respath:
-                self.load_results_data()
+                self.load_results_data_v2()
 
     @property
     def k(self):
@@ -251,6 +274,8 @@ class Evaluator:
 
     def load_results_data(self):
 
+        aux = glob.glob(self.rkpath + '/*folds.npy')[0]
+        self.foldidx = np.load(aux)
         n, rds = self.foldidx.shape
 
         # Loading Groundtruth labels
@@ -276,7 +301,7 @@ class Evaluator:
 
             nm = mdata['name']
 
-            irp_flist = glob.glob(self.outpath + "{0:s}/*.npy".format(nm))
+            irp_flist = glob.glob(self.outpath + "{0:s}/*irp.npy".format(nm))
             irp_flist.sort()
 
             mdata['irp_results'] = list(map(np.load, irp_flist))
@@ -285,6 +310,99 @@ class Evaluator:
 
             for i in range(len(mdata['irp_results'])):
                 mdata['irp_results'][i] = mdata['irp_results'][i][:, 0:self.__k]
+
+    def load_results_data_v2(self):
+
+        # Loading Groundtruth labels
+
+        irp_lbl = np.load(glob.glob(self.lblpath + '*{0:s}*'.format(self.rktpalias))[0])
+        self.__gt_irp_labels = irp_lbl[:, 0:self.__k]
+
+        assert self.__gt_irp_labels.size > 0, "Empty IRP Groundtruth Labels"
+
+        # Loading Predicted Labels
+        for mdata in self.__data:
+
+            nm = mdata['name']
+
+            irp_f = glob.glob(self.outpath + "{0:s}/*irp.npy".format(nm))
+
+            mdata['irp_results'] = np.load(irp_f[0])
+
+            assert mdata['irp_results'].size > 0, "Empty IRP Predicted Labels at: " + self.outpath + "{0:s}/".format(nm)
+            assert mdata['irp_results'].shape[1] == self.__gt_irp_labels.shape[0], \
+                  "Inconsistent number of labels in results data <{0:d}> " \
+                  "and groundtruth data <{1:d}>".format(mdata['irp_results'].shape[1], self.__gt_irp_labels.shape[0])
+
+            mdata['irp_results'] = mdata['irp_results'][:, :, 0:self.__k]
+
+    def evaluate_v2(self):
+
+        np.set_printoptions(linewidth=300, precision=4)
+        np.seterr(divide='ignore', invalid='ignore')
+        T_vals = np.arange(1, 11, 1).reshape(1, -1)
+
+        for mdata in self.__data:
+            #print("Evaluating:", mdata['name'])
+            # Individual Rank Position (irp) Evaluation
+            irp_evaluation = []
+            rpp_evaluation = []
+
+            pos_evaluation_nacc = []
+            pos_evaluation_f1 = []
+
+            irp_pred_labels = mdata['irp_results']
+
+            rounds = mdata['irp_results'].shape[0]
+
+            for i in range(rounds):
+
+                irp_pred_labels_round = irp_pred_labels[i]
+
+                assert self.__gt_irp_labels.shape == irp_pred_labels_round.shape, \
+                       "Inconsistent shapes between true <{0:s}> and predicted <{1:s}> " \
+                       "labels".format(str(self.__gt_irp_labels.shape), str(irp_pred_labels_round.shape))
+
+                # multi_norm_acc operates over rows. Rows, in the original arrays, are samples, while columns are
+                # positions. To evaluate the positional norm acc, transpose should be used to turn positions into rows
+                pos_nacc, _ = multi_norm_acc(self.__gt_irp_labels.transpose(), irp_pred_labels_round.transpose())
+                pos_f1, _ = multi_f1(self.__gt_irp_labels.transpose(), irp_pred_labels_round.transpose())
+
+                pos_evaluation_nacc.append(pos_nacc.reshape(-1))
+                pos_evaluation_f1.append(pos_f1.reshape(-1))
+
+                # Evaluating IRP -- ALL INSTANCES
+                irp_nacc = norm_acc(self.__gt_irp_labels.reshape(-1), irp_pred_labels_round.reshape(-1))
+                irp_mcc = matthews_corrcoef(self.__gt_irp_labels.reshape(-1), irp_pred_labels_round.reshape(-1))
+                irp_f1 = f1_score(self.__gt_irp_labels.reshape(-1), irp_pred_labels_round.reshape(-1))
+
+                irp_evaluation.append([irp_nacc, irp_f1, irp_mcc])
+                ###
+
+                # Evaluating RPP
+                rpp_pred_labels_single = (irp_pred_labels_round.sum(axis=1).reshape(-1, 1) >= T_vals).astype(np.uint8)
+                rpp_true_labels_single = (self.__gt_irp_labels.sum(axis=1).reshape(-1, 1) >= T_vals).astype(np.uint8)
+
+                rpp_nacc = np.array([norm_acc(rpp_true_labels_single[:, x], rpp_pred_labels_single[:, x])
+                                     for x in range(0, T_vals.size)])
+
+                rpp_evaluation.append(rpp_nacc)
+
+                ###
+
+            irp_evaluation = np.vstack(irp_evaluation)
+            pos_evaluation_nacc = np.vstack(pos_evaluation_nacc)
+            pos_evaluation_f1 = np.vstack(pos_evaluation_f1)
+            rpp_evaluation = np.vstack(rpp_evaluation)
+
+            mdata['irp_evaluation'] = np.vstack([irp_evaluation, np.mean(irp_evaluation, axis=0).reshape(1, -1)])
+            mdata['pos_evaluation_nacc'] = np.vstack([pos_evaluation_nacc, np.mean(pos_evaluation_nacc, axis=0).reshape(1, -1)])
+            mdata['pos_evaluation_f1'] = np.vstack([pos_evaluation_f1, np.mean(pos_evaluation_f1, axis=0).reshape(1, -1)])
+            mdata['rpp_evaluation'] = np.vstack([rpp_evaluation, np.mean(rpp_evaluation, axis=0).reshape(1, -1)])
+
+            #pdb.set_trace()
+            np.seterr(divide='warn', invalid='warn')
+            ##
 
     def evaluate(self):
 
@@ -340,7 +458,7 @@ class Evaluator:
                 irp_mcc = matthews_corrcoef(irp_true_labels_single.reshape(-1), irp_pred_labels_single.reshape(-1))
                 irp_f1 = f1_score(irp_true_labels_single.reshape(-1), irp_pred_labels_single.reshape(-1))
 
-                irp_evaluation.append([irp_acc, irp_nacc, irp_f1, irp_mcc])
+                irp_evaluation.append([irp_nacc, irp_f1, irp_mcc])
                 ###
 
                 # Evaluating IRP -- PER INSTANCE
