@@ -7,7 +7,7 @@ import numpy.random as npran
 import glob
 import warnings
 
-import ipdb as pdb
+#import ipdb as pdb
 from tqdm import tqdm
 
 from rankutils.utilities import getbasename, get_index
@@ -17,14 +17,22 @@ from rankutils.statistical import ev_density_approximation, ev_fit
 from rankutils.clustering import clustering_1d
 
 
+def load_namelist(fpath):
+
+    dt = dict(names=('name', 'numfeat', 'cid'), formats=('U100', np.int32, np.int32))
+    namelist = np.loadtxt(fpath, dtype=dt)
+
+    return namelist
+
+
 def generate_rank_variations(rank, labels, nvar, vfactor):
 
     if vfactor < 0.05 or vfactor > 1.0:
         raise ValueError("vfactor should be between 0.3 and 1.0")
 
-    variations = [(rank, labels)]
+    variations = [(rank['name'], rank['score'], labels)]
 
-    for i in range(nvar):
+    for i in range(nvar-1):
 
         idx = np.arange(rank.size)
         npran.shuffle(idx)
@@ -34,14 +42,28 @@ def generate_rank_variations(rank, labels, nvar, vfactor):
         vidx = idx[0:ci]
         vidx.sort()
 
-        variations.append((rank[vidx], labels[vidx]))
+        variations.append((rank['name'][vidx], rank['score'][vidx], labels[vidx]))
 
     return variations
 
 
+def get_name_in_coll(rkfpath, key):
+
+    if key == 'vggfaces_002':
+        aux = os.path.basename(rkfpath).split('_', 1)[1]
+        aux = aux.rsplit('_', 1)[0]
+        aux += '.png'
+    else:
+        aux = os.path.basename(rkfpath).split('_', 1)[1]
+        aux = aux.rsplit('.', 1)[0]
+
+    return aux
+
+
+
 class Extractor:
 
-    def __init__(self, cfg, namefpath='', distfdir=''):
+    def __init__(self, cfg, **collecionargs):
 
         # GT labels. Saved on a .npz file together with the feature vectors
 
@@ -56,29 +78,39 @@ class Extractor:
         self.__dct_range = cfg.getint('parameters', 'dct_range', fallback=20)
         self.__delta_range = cfg.getint('parameters', 'delta_range', fallback=20)
         self.__abs_diff = cfg.getboolean('parameters', 'absolute_difference', fallback=False)
+        self.__num_intv = cfg.getint('parameters', 'num_intervals', fallback=100)
+        self.__contextual_k = cfg.getint('parameters', 'contextual_k', fallback=300)
         self.__norm = cfg.getboolean('parameters', 'normalize', fallback=False)
         self.__nvar = cfg.getint('parameters', 'nvar', fallback=1)
         self.__varf = cfg.getfloat('parameters', 'varf', fallback=0.5)
+        self.__get_previous = cfg.getboolean('parameters', 'get_previous', fallback=False)
+        self.__get_next = cfg.getboolean('parameters', 'get_previous', fallback=False)
 
         self.__namelist = None
         self.__distfitparams = None
+        self.__collmatches = None
 
-        if namefpath != '':
+        self.__dkey = collecionargs['dkey']
+
+        if 'namelist_fpath' in collecionargs:
             try:
-                self.__namelist = np.loadtxt(namefpath, usecols=0, dtype='U100')
+                self.__namelist = load_namelist(collecionargs['namelist_fpath'])
             except OSError:
-                warnings.warn("Namelist file not found. Trying to run descriptors that use it will result in a crash", RuntimeWarning)
+                warnings.warn("Namelist file not found. Trying to run descriptors that use it will"
+                              " result in a crash", RuntimeWarning)
 
-        if distfdir != '':
+        if 'ditribution_fdir' in collecionargs:
             try:
-                aux = glob.glob(distfdir + "*{0:s}*".format(self.__distribtype.lower()))[0]
+                aux = glob.glob(collecionargs['ditribution_fdir'] + "*{0:s}*".format(self.__distribtype.lower()))[0]
                 self.__distfitparams = np.load(aux)
             except IndexError:
-                warnings.warn("Distribution parameter file not found. Trying to run density-dependant extractors will result in a crash", RuntimeWarning)
+                warnings.warn("Distribution parameter file not found. Trying to run density-dependant extractors will"
+                              " result in a crash", RuntimeWarning)
 
         self.__cluster_check = False
         self.__density_check = False
         self.__fit_check = False
+        self.__contextual_check = False
 
         self.__feature_queue = []
         self.__fv_dim = 0
@@ -109,18 +141,50 @@ class Extractor:
                 if featalias == 'dct_shift':
                     self.__fv_dim += self.__dct_range
 
+                if featalias == 'rank_jacc':
+                    self.__contextual_check = True
+                    self.__fv_dim += self.__num_intv
+
+                if featalias == 'accum_jacc':
+                    self.__contextual_check = True
+                    self.__fv_dim += self.__num_intv
+
+                if featalias == 'cid_jacc':
+                    self.__contextual_check = True
+                    self.__fv_dim += self.__num_intv
+
+                if featalias == 'cid_freq_diff':
+                    self.__contextual_check = True
+                    # When counting the frequencies of CID, the size of the feature vector is the number of different
+                    # CIDs. Because CIDs are indexed from 0, that number is the maximum CID value + 1
+                    self.__fv_dim += np.max(self.__namelist['cid']) + 1
+
+        if 'collmatches_fpath' in collecionargs and self.__contextual_check:
+            try:
+                self.__collmatches = np.load(collecionargs['collmatches_fpath'])[:, 0:self.__contextual_k]
+            except OSError:
+                warnings.warn("Collection matching indices file not found. Trying to run descriptors that use it will"
+                              " result in a crash", RuntimeWarning)
+
+        if self.__contextual_check and self.__namelist is None:
+            raise ValueError("Contextual <rank_jacc> features requires a valid namelist. "
+                             "Did you pass a valid namelist file path argument?")
+
+        if self.__contextual_check and self.__collmatches is None:
+            raise ValueError("Contextual <rank_jacc> features requires a valid collection matching indices file. "
+                             "Did you pass a valid collection matches file path argument?")
 
         if self.__density_check and self.__namelist is None:
             raise ValueError("Statistical (<emd>, <query_bhatt>) features requires a valid namelist. "
-                             "Did you pass a valid namefpath argument?")
+                             "Did you pass a valid namelist file path argument?")
 
         if self.__density_check and self.__distfitparams is None:
             raise ValueError("Statistical (<emd>, <query_bhatt>) features requires a valid fit parameters array. "
-                             "Did you pass a valid distfdir argument?")
+                             "Did you pass a valid distribution file dir argument?")
 
     def update_namelist(self, namefpath):
         try:
-            self.__namelist = np.loadtxt(namefpath, usecols=0, dtype='U100')
+            self.__namelist = load_namelist(namefpath)
         except OSError:
             warnings.warn("Namelist file not found.", RuntimeWarning)
         return
@@ -134,16 +198,26 @@ class Extractor:
                           "will result in a crash", RuntimeWarning)
         return
 
+    def update_collection_matches(self, collmfpath):
+
+        if self.__contextual_check:
+            try:
+                self.__collmatches = np.load(collmfpath)
+            except OSError:
+                warnings.warn("Distribution parameter file not found. Trying to run density-dependant extractors"
+                              "will result in a crash", RuntimeWarning)
+
+        return
+
     def extract(self, inputdir, labelfpath, outfile, matlab_engine=None):
 
         labels = np.load(labelfpath)
 
-
-        #pdb.set_trace()
         rkflist = glob.glob(inputdir + "*.rk")
         rkflist.sort()
 
-        assert len(rkflist) == labels.shape[0], "Inconsistent number of ranks and label rows!"
+        assert len(rkflist) == labels.shape[0], "Inconsistent number of ranks <{0:d}> and label rows <{1:d}>!"\
+                                                .format(len(rkflist), labels.shape[0])
 
         gfvargs = dict(scores=None,
                        i=-1,
@@ -153,14 +227,15 @@ class Extractor:
                        delta_range=self.__delta_range,
                        cluster_num=self.__cluster_num,
                        abs=self.__abs_diff,
+                       num_intv=self.__num_intv,
                        norm=self.__norm,
                        clusters=None,
                        densities=None,
                        edges=None,
                        distmat=None,
                        q_density=None,
-                       q_edges=None
-                       )
+                       q_edges=None,
+                       coll_matches=self.__collmatches)
 
         total_samples = len(rkflist)
 
@@ -168,7 +243,13 @@ class Extractor:
 
         # Last dimension is just to keep the labels and features dimensions the same
         outlabels = np.zeros((self.__topk, total_samples, self.__nvar, 1), dtype=np.uint8)
-        outfeatures = np.zeros((self.__topk, total_samples, self.__nvar, self.__fv_dim), dtype=np.float64)
+
+        t = 1
+        if self.__get_next:
+            t += 1
+        if self.__get_previous:
+            t += 1
+        outfeatures = np.zeros((self.__topk, total_samples, self.__nvar, self.__fv_dim * t), dtype=np.float64)
 
         for i in tqdm(range(total_samples), ncols=75, desc='Rank File', total=total_samples):
 
@@ -181,12 +262,12 @@ class Extractor:
 
             # Experimental. Generate random variations of ranked scores + labels by removing a random sample of
             # elements from the rank.
-            variations = generate_rank_variations(rk_array['score'], rklabels, self.__nvar, self.__varf)
+            variations = generate_rank_variations(rk_array, rklabels, self.__nvar, self.__varf)
 
             sample_vectors = [[] for _ in range(0, self.__nvar)]
             for v in tqdm(range(self.__nvar), ncols=75, desc='  .Variation', total=self.__nvar):
 
-                rkscores, rklabels = variations[v]
+                rknames, rkscores, rklabels = variations[v]
 
                 gfvargs['scores'] = rkscores
 
@@ -214,7 +295,7 @@ class Extractor:
                     lower_bound = rk_array['score'][self.__tail_idx]
                     upper_bound = rk_array['score'][-1]
 
-                    pidx = get_index(self.__namelist, rk_array['name'][0:self.__topk])
+                    pidx = get_index(self.__namelist['name'], rk_array['name'][0:self.__topk])
 
                     if pidx.size < self.__topk:
                         raise ValueError("Could not find top {0:d} ranked images in namelist. ".format(self.__topk))
@@ -249,6 +330,22 @@ class Extractor:
                     gfvargs['q_edges'] = edg
                 ##################
 
+                if self.__contextual_check:
+
+                    aux = get_name_in_coll(rkflist[i], self.__dkey)
+
+                    try:
+                        gfvargs['query_idx'] = np.argwhere(self.__namelist['name'] == aux)[0, 0]
+                    except:
+                        pdb.set_trace()
+
+                    gfvargs['topk_idx'] = np.zeros(self.__topk, dtype=np.int32) - 1
+                    for r in range(0, self.__topk):
+                        gfvargs['topk_idx'][r] = np.argwhere(self.__namelist['name'] == rknames[r])[0, 0]
+
+                    gfvargs['cid_list'] = self.__namelist['cid']
+
+
                 ### Extraction ###
                 # Per top-k extraction
                 for r in range(0, self.__topk):  # Iterates over rank positions
@@ -259,12 +356,34 @@ class Extractor:
                         fvector.append(get_rank_feature(featalias, **gfvargs))
                     fvector = np.hstack(fvector).reshape(1, -1)
 
-                    assert fvector.size == self.__fv_dim, "Inconsistent feature vector size <{0:03d}> with " \
-                                                              "precomputed feature vector dimension <{1:03d}> ".format(fvector.size, self.__fv_dim)
+                    assert fvector.size == self.__fv_dim, "Inconsistent feature vector size <{0:d}> with " \
+                                                              "precomputed feature vector dimension <{1:d}> ".format(fvector.size, self.__fv_dim)
 
                     outlabels[r, i, v, 0] = rklabels[r]
-                    outfeatures[r, i, v] = fvector
+                    outfeatures[r, i, v, 0:self.__fv_dim] = fvector
 
+                if self.__get_next or self.__get_previous:
+                    for r in range(0, self.__topk):
+                        catfeat = [outfeatures[r, i, v, 0:self.__fv_dim]]
+
+                        if self.__get_previous:
+                            if r > 0:
+                                catfeat.append(outfeatures[r - 1, i, v, 0:self.__fv_dim])
+                            else:
+                                catfeat.append(np.zeros(self.__fv_dim, dtype=np.float64))
+
+                        if self.__get_next:
+                            if r < self.__topk-1:
+                                catfeat.append(outfeatures[r + 1, i, v, 0:self.__fv_dim])
+                            else:
+                                catfeat.append(np.zeros(self.__fv_dim, dtype=np.float64))
+
+                        outfeatures[r, i, v] = np.hstack(catfeat)
+
+
+                #pdb.set_trace()
+                #if rklabels[0] == 0:
+                #    pdb.set_trace()
 
         #pdb.set_trace()
         np.savez_compressed(outfile, features=outfeatures, labels=outlabels)

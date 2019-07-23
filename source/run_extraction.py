@@ -41,13 +41,20 @@ def run_extraction(dataset_choices, expconfig):
             print(". Experiment: ", expcfg['DEFAULT']['expname'])
 
             lblfpath = glob.glob(pathcfg[dkey]["label"] + "*" + rktpname + "*")[0]
+
+            try:
+                collmfpath = glob.glob(pathcfg[dkey]["collmatches"] + "*" + rktpname + "*db_matches*")[0]
+            except (IndexError, KeyError):
+                collmfpath = ''
+
             safe_create_dir(pathcfg[dkey]["feature"])
 
-            if not extr:
-                extr = Extractor(expcfg, pathcfg[dkey]['namelist'], pathcfg[dkey]['distribution'])
-            else:
-                extr.update_namelist(pathcfg[dkey]['namelist'])
-                extr.update_fit_params(pathcfg[dkey]['distribution'])
+            collectionargs = dict(namelist_fpath=pathcfg[dkey]['namelist'],
+                                  ditribution_fdir=pathcfg[dkey]['distribution'],
+                                  collmatches_fpath=collmfpath,
+                                  dkey=dkey)
+
+            extr = Extractor(expcfg, **collectionargs)
 
             outfile = "{0:s}{1:s}.{2:s}".format(pathcfg[dkey]["feature"],
                                                 dkey, expcfg['DEFAULT']['expname'])  # NPZ output file

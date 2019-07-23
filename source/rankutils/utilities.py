@@ -71,6 +71,38 @@ class ProgressBar:
             print('\n')
 
 
+def load_namelist(fpath):
+
+    dt = dict(names=('name', 'numfeat', 'cid'), formats=('U100', np.int32, np.int32))
+    namelist = np.loadtxt(fpath, dtype=dt)
+
+    return namelist
+
+
+def get_index_array(namerray, namelist):
+
+    nsort = np.argsort(namelist)
+    pos = np.searchsorted(namelist[nsort], namerray)
+
+    return nsort[pos]
+
+
+def reshape_features(fv):
+
+    feat = fv['features']
+    labels = fv['labels']
+
+    p, n, v, d = feat.shape
+
+    feat = feat.reshape(p, n, d)
+    labels = labels.reshape(p, n)
+
+    feat = np.transpose(feat, [1, 0, 2])
+    labels = np.transpose(labels)
+
+    return feat, labels
+
+
 def safe_create_dir(dir):
     """ Safely creates dir, checking if it already exists.
 
@@ -118,8 +150,6 @@ def merge_kfolds_rounds(respath, folds):
     return round_res
 
 
-
-
 def ndarray_bin_to_int(arr):
 
     if arr.ndim == 2:
@@ -159,12 +189,14 @@ def makeDlabel(d):
 
 
 def get_classname(name):
-    parts = name.split("_")
-    i = 0
 
-    for i in range(len(parts)):
-        if parts[i].isdigit():
-            break
+    name_ = os.path.splitext(name)[0]
+
+    parts = name_.split("_")
+    i = len(parts)
+
+    while parts[i-1].isdigit() and i >= 0:
+        i -= 1
 
     return "_".join(parts[:i])
 

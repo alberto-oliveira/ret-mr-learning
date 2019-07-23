@@ -5,18 +5,26 @@ import glob
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-from sklearn.svm import LinearSVC, SVC, OneClassSVM
+from sklearn.svm import SVC, OneClassSVM
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, minmax_scale
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, ShuffleSplit, GridSearchCV, StratifiedShuffleSplit
 from sklearn.metrics import balanced_accuracy_score
 
+from pystruct.learners import NSlackSSVM
+
+np.random.seed(93311)
+
 classifier_map = dict(log=LogisticRegression,
-                      linearsvm=LinearSVC,
-                      rbfsvm=SVC,
+                      svc=SVC,
                       rfor=RandomForestClassifier)
 
 import ipdb as pdb
+
+grid = [
+  #{'C': [1, 10], 'kernel': ['linear']},
+  {'C': [0.1, 1, 10], 'gamma': ['scale'], 'kernel': ['rbf']}
+ ]
 
 
 def fpe_err_handler(type, flag):
@@ -28,7 +36,7 @@ def get_classifier(cname):
     cclass = classifier_map.get(cname, None)
 
     try:
-        clf = cclass(class_weight='balanced', gamma='scale')
+        clf = cclass(class_weight='balanced', probability=False, kernel='rbf', gamma='scale')
 
     except TypeError as tpe:
         print("Failure initializing classifier <{0:s}>.".format(cname))
@@ -37,6 +45,18 @@ def get_classifier(cname):
         clf = None
 
     return clf
+
+
+def grid_search(estimator, data_x, data_y):
+
+    #print("\n----BEGIN----\n")
+    shf = StratifiedShuffleSplit(1, 0.2, 0.8, random_state=93311)
+
+    gs = GridSearchCV(estimator, param_grid=grid, scoring='balanced_accuracy', cv=shf, refit=True, verbose=0, n_jobs=7)
+    gs.fit(data_x, data_y)
+
+    #print("\n----END----\n")
+    return gs.best_estimator_
 
 
 def get_training_from_pack(features_pack, train_idx, scale=True):
@@ -94,113 +114,10 @@ def validation_acc(features, labels, cname):
     return valid_acc
 
 
-def run_two_set_classification(features, labels, foldidx, cname, get_valid_acc=False):
-
-    np.set_printoptions(precision=2, linewidth=300)
-    np.seterr(all='call')
-    np.seterrcall(fpe_err_handler)
-
-    v_acc = []
-
-    f0_idx, f1_idx = foldidx
-    n0 = f0_idx.size
-    n1 = f1_idx.size
-
-    N = features.shape[0]
-    V = features.shape[1]
-
-    predicted = []
-
-    CLF = get_classifier(cname)
-
-    # Train is fold 1 and Test is fold 0
-    SCL = StandardScaler()
-    TRAIN_X = SCL.fit_transform(features[f1_idx, :].reshape(n1*V, -1))
-    TEST_X = SCL.transform(features[f0_idx, 0])
-
-    TRAIN_y = labels[f1_idx].reshape(-1)
-
-    assert TRAIN_X.shape[0] == TRAIN_y.shape[0], \
-           "Inconsistent shape of features {0:s} and labels {1:s}".format(str(TRAIN_X.shape), str(TRAIN_y.shape))
-
-    if np.unique(TRAIN_y).size == 1 and not isinstance(CLF, RandomForestClassifier):
-
-        CLF_one = OneClassSVM(gamma='scale')
-        CLF_one.fit(TRAIN_X)
-
-        PRED_y = CLF_one.predict(TEST_X)
-
-        inl_idx = np.flatnonzero(PRED_y == 1)
-        outl_idx = np.flatnonzero(PRED_y == -1)
-        if TRAIN_y[0] == 0:
-            PRED_y[inl_idx] = 0
-            PRED_y[outl_idx] = 1
-        else:
-            PRED_y[inl_idx] = 1
-            PRED_y[outl_idx] = 0
-
-        predicted.append(PRED_y.reshape((-1, 1)))
-
-    else:
-
-        if get_valid_acc:
-            v_acc.append(validation_acc(TRAIN_X, TRAIN_y, cname))
-
-        CLF.fit(TRAIN_X, TRAIN_y)
-
-        PRED_y = CLF.predict(TEST_X)
-        predicted.append(PRED_y.reshape((-1, 1)))
-
-
-    # Train is fold 0 and Test is fold 1
-    SCL = StandardScaler()
-    TRAIN_X = SCL.fit_transform(features[f0_idx, :].reshape(n0*V, -1))
-    TEST_X = SCL.transform(features[f1_idx, 0])
-
-    TRAIN_y = labels[f0_idx].reshape(-1)
-
-    assert TRAIN_X.shape[0] == TRAIN_y.shape[0], \
-           "Inconsistent shape of features {0:s} and labels {1:s}".format(str(TRAIN_X.shape), str(TRAIN_y.shape))
-
-    if np.unique(TRAIN_y).size == 1 and not isinstance(CLF, RandomForestClassifier):
-
-        CLF_one = OneClassSVM(gamma='scale')
-        CLF_one.fit(TRAIN_X)
-
-        PRED_y = CLF_one.predict(TEST_X)
-
-        inl_idx = np.flatnonzero(PRED_y == 1)
-        outl_idx = np.flatnonzero(PRED_y == -1)
-        if TRAIN_y[0] == 0:
-            PRED_y[inl_idx] = 0
-            PRED_y[outl_idx] = 1
-        else:
-            PRED_y[inl_idx] = 1
-            PRED_y[outl_idx] = 0
-
-        predicted.append(PRED_y.reshape((-1, 1)))
-
-    else:
-
-        if get_valid_acc:
-            v_acc.append(validation_acc(TRAIN_X, TRAIN_y, cname))
-
-        CLF.fit(TRAIN_X, TRAIN_y)
-
-        PRED_y = CLF.predict(TEST_X)
-        predicted.append(PRED_y.reshape((-1, 1)))
-
-
-    # Predicted is a tuple of predicted labels: the first are the labels for fold 0 as test,
-    # while the second are the labels for fold 1 as test.
-    if get_valid_acc:
-        return predicted, v_acc
-    else:
-        return predicted
-
-
 # Considers sets of non-variate features/labels (2 dimensions)
-def run_classification(features, labels, foldidx, cname, get_valid_acc):
+def run_positional_classification(features, labels, foldidx, cname, get_valid_acc, get_prob):
+
+    get_prob = True
 
     np.set_printoptions(precision=2, linewidth=300)
     np.seterr(all='call')
@@ -209,8 +126,6 @@ def run_classification(features, labels, foldidx, cname, get_valid_acc):
     v_acc = []
 
     train_idx, test_idx = foldidx
-
-    CLF = get_classifier(cname)
 
     SCL = StandardScaler()
     TRAIN_X = SCL.fit_transform(features[train_idx])
@@ -224,11 +139,168 @@ def run_classification(features, labels, foldidx, cname, get_valid_acc):
     if get_valid_acc:
         v_acc.append(validation_acc(TRAIN_X, TRAIN_y, cname))
 
-    CLF.fit(TRAIN_X, TRAIN_y)
+    if np.unique(TRAIN_y).size == 1:
+        one_class = True
+        CLF = OneClassSVM(gamma='scale')
+        CLF.fit(TRAIN_X, TRAIN_y)
+    else:
+        one_class = False
+        CLF = get_classifier(cname)
+        #pdb.set_trace()
 
-    PRED_y = CLF.predict(TEST_X)
+        if TRAIN_X.shape[0] >= 100 and (TRAIN_y == 0).sum() > 2 and (TRAIN_y == 1).sum() > 2:
+            CLF = grid_search(CLF, TRAIN_X, TRAIN_y)
+        else:
+            CLF.fit(TRAIN_X, TRAIN_y)
+
+    if not one_class:                             # Not one class classifier and output is labels
+        PRED_y = CLF.predict(TEST_X)
+        try:
+            PROB_y = CLF.predict_proba(TEST_X)[:, 1]
+        except AttributeError:
+            PROB_y = PRED_y.copy()
+    else:                                         # One class classifier and output is labels
+        PRED_y = CLF.predict(TEST_X)
+        inl_idx = np.flatnonzero(PRED_y == 1)
+        outl_idx = np.flatnonzero(PRED_y == -1)
+        if TRAIN_y[0] == 0:
+            PRED_y[inl_idx] = 0
+            PRED_y[outl_idx] = 1
+        else:
+            PRED_y[inl_idx] = 1
+            PRED_y[outl_idx] = 0
+        PROB_y = PRED_y.copy()
 
     if get_valid_acc:
-        return PRED_y, v_acc
+        return PRED_y, PROB_y, v_acc
     else:
-        return PRED_y
+        return PRED_y, PROB_y
+
+# Considers sets of non-variate but multipositional features/labels
+# Features are k x n x d dimensional
+# Labels are k x n x 1 dimensional
+def run_single_classification(features, labels, foldidx, cname, get_valid_acc, get_prob):
+    #pdb.set_trace()
+    np.set_printoptions(precision=2, linewidth=300)
+    np.seterr(all='call')
+    np.seterrcall(fpe_err_handler)
+
+    k, _, d = features.shape
+
+    v_acc = []
+
+    train_idx, test_idx = foldidx
+
+    CLF = get_classifier(cname)
+
+    TRAIN_X = features[1:, train_idx]
+
+    SCL = StandardScaler()
+    TRAIN_X = SCL.fit_transform(TRAIN_X.reshape(-1, d))
+    TRAIN_y = labels[1:, train_idx].reshape(-1)
+
+    assert TRAIN_X.shape[0] == TRAIN_y.shape[0], \
+           "Inconsistent shape of features {0:s} and labels {1:s}".format(str(TRAIN_X.shape), str(TRAIN_y.shape))
+
+    if get_valid_acc:
+        v_acc.append(validation_acc(TRAIN_X, TRAIN_y, cname))
+
+    #pdb.set_trace()
+
+    if TRAIN_X.shape[0] > 20000:
+        sample_idx = np.random.choice(np.arange(TRAIN_X.shape[0]), 20000, replace=False)
+        CLF = grid_search(CLF, TRAIN_X[sample_idx], TRAIN_y[sample_idx])
+    else:
+        CLF = grid_search(CLF, TRAIN_X, TRAIN_y)
+
+    pred_list = []
+    prob_list = []
+
+    for i in range(k):
+        TEST_X = SCL.transform(features[i, test_idx])
+
+        pred_list.append(CLF.predict(TEST_X))
+        try:
+            prob_list.append(CLF.predict_proba(TEST_X)[:, 1])
+        except AttributeError:
+            prob_list.append(pred_list[-1].copy())
+
+    if get_valid_acc:
+        return pred_list, prob_list, v_acc
+    else:
+        return pred_list, prob_list
+
+
+def run_block_classification(features, labels, foldidx, cname, bs, be, get_valid_acc):
+    #pdb.set_trace()
+    np.set_printoptions(precision=2, linewidth=300)
+    np.seterr(all='call')
+    np.seterrcall(fpe_err_handler)
+
+    if bs == 0:
+        bs_ = 1
+    else:
+        bs_ = bs
+
+    k, _, d = features.shape
+
+    v_acc = []
+
+    train_idx, test_idx = foldidx
+
+    CLF = get_classifier(cname)
+
+    TRAIN_X = features[bs_:be, train_idx]
+
+    SCL = StandardScaler()
+    TRAIN_X = SCL.fit_transform(TRAIN_X.reshape(-1, d))
+    TRAIN_y = labels[bs_:be, train_idx].reshape(-1)
+
+    assert TRAIN_X.shape[0] == TRAIN_y.shape[0], \
+           "Inconsistent shape of features {0:s} and labels {1:s}".format(str(TRAIN_X.shape), str(TRAIN_y.shape))
+
+    if get_valid_acc:
+        v_acc.append(validation_acc(TRAIN_X, TRAIN_y, cname))
+
+    CLF = grid_search(CLF, TRAIN_X, TRAIN_y)
+    #CLF.fit(TRAIN_X, TRAIN_y)
+
+    pred_list = []
+    prob_list = []
+
+    for i in range(bs, be):
+        if i >= k:
+            break
+
+        TEST_X = SCL.transform(features[i, test_idx])
+
+        pred_list.append(CLF.predict(TEST_X))
+        try:
+            prob_list.append(CLF.predict_proba(TEST_X)[:, 1])
+        except AttributeError:
+            prob_list.append(pred_list[-1].copy())
+
+    if get_valid_acc:
+        return pred_list, prob_list, v_acc
+    else:
+        return pred_list, prob_list
+
+
+def run_sequence_labeling(features, labels, foldidx, seq_size):
+
+    p, n, _ = labels.shape
+    labels_ = labels.reshape(p, n)
+
+    features_ = np.transpose(features, [1, 0, 2])
+    labels_ = np.transpose(labels_)
+
+    train_idx, test_idx = foldidx
+
+    SCL = StandardScaler()
+
+    pdb.set_trace()
+
+    return [], []
+
+
+

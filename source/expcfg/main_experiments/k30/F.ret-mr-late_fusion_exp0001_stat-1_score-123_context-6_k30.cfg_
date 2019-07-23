@@ -1,0 +1,14 @@
+[DEFAULT]
+expname=late-fusion.0001.irp.stat-1_score-123_context-6.k30
+topk=30
+type=late_fusion
+
+[methods]
+m0=stat.0001.irp.weibull-fixed.k30
+m1=pos-learn.0001.irp.deltac_i-64.k30.svc
+m2=pos-learn.0002.irp.sdct40.k30.svc
+m3=pos-learn.0003.irp.clust-diff-64.k30.svc
+
+
+
+[weights]

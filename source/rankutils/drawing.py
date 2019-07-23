@@ -68,10 +68,10 @@ def rank_plot(rank, k, ax=None, title='', **kwargs):
     coloridx = np.arange(0, limit, 1, dtype=np.float64)
 
     if top.size > 0:
-        clist_top = colors_from_cmap(cmaptop, coloridx, cnorm_bottom, cnorm_top)[0:k]
+        clist_top = colors_from_cmap(cmaptop, coloridx, (cnorm_bottom, cnorm_top))[0:k]
         ax.bar(x_top, top, bw, 0.0, align='edge', color=clist_top, label='Top {0:d}'.format(k))
 
-    clist_tail = colors_from_cmap(cmaptail, coloridx, cnorm_bottom, cnorm_top)[k:]
+    clist_tail = colors_from_cmap(cmaptail, coloridx,(cnorm_bottom, cnorm_top))[k:]
     ax.bar(x_tail, tail, bw, 0.0, align='edge', color=clist_tail, label='Tail')
 
     ax.set_xlim(left=start_pos, right=x_tail[-1] + 1)

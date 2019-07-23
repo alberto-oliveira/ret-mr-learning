@@ -29,6 +29,20 @@ def get_rank_feature(featalias, **ka):
     elif featalias == 'query_bhatt':
         return rank_features_density_distance_from_query(ka['q_density'], ka['q_edges'],
                                                          ka['densities'], ka['edges'], ka['i'], ka['norm'])
+    elif featalias == 'rank_jacc':
+        pidx = ka['topk_idx'][ka['i']]
+        return rank_features_interval_jaccard(ka['coll_matches'], ka['query_idx'], pidx, ka['num_intv'], ka['norm'])
+    elif featalias == 'accum_jacc':
+        pidx = ka['topk_idx'][ka['i']]
+        return rank_features_accum_jaccard(ka['coll_matches'], ka['query_idx'], pidx, ka['num_intv'], ka['norm'])
+    elif featalias == 'cid_jacc':
+        pidx = ka['topk_idx'][ka['i']]
+        return rank_features_interval_cid_jaccard(ka['coll_matches'], ka['cid_list'], ka['query_idx'], pidx,
+                                                  ka['num_intv'], ka['norm'])
+    elif featalias == 'cid_freq_diff':
+        i = ka['topk_idx'][ka['i']]
+        return rank_features_cid_frequency_diff(ka['coll_matches'], ka['cid_list'], ka['query_idx'], i, ka['norm'])
+
     else:
         raise ValueError("<{0:s}> is not a valid feature alias. ".format(featalias))
 
@@ -36,7 +50,7 @@ def get_rank_feature(featalias, **ka):
 def rank_features_kDCT(scores, k, dct_type, norm=False):
     """
     Extracts DCT features from the top-k ranked scores from an input rank. The 'notop' flags points if top-k is from
-    position 1 to k (notop = Fslse) or from position 2 to k+1 (notop = True).
+    position 1 to k (notop = False) or from position 2 to k+1 (notop = True).
 
     :param scores: numpy array comprising ranked scores.
     :param k: number of top positions considered.
@@ -210,4 +224,101 @@ def rank_features_density_distance_from_query(q_density, q_edges, r_densities, r
         return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
     else:
         return fv
+
+
+def rank_features_interval_jaccard(collmatches, qidx, pidx, n, norm=False):
+
+    if not np.all(collmatches[pidx] != -1) or not np.all(collmatches[qidx] != -1):
+        pdb.set_trace()
+
+    q_split = np.array_split(collmatches[qidx], n)
+    p_split = np.array_split(collmatches[pidx], n)
+
+    fv = np.zeros(n, dtype=np.float64)
+
+    for i in range(n):
+
+        intersection = np.intersect1d(q_split[i], p_split[i])
+        union = np.union1d(q_split[i], p_split[i])
+
+        fv[i] = intersection.size/union.size
+
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv
+
+
+def rank_features_accum_jaccard(collmatches, qidx, pidx, n, norm=False):
+
+    q_split = np.array_split(collmatches[qidx], n)
+    p_split = np.array_split(collmatches[pidx], n)
+
+    fv = np.zeros(n, dtype=np.float64)
+
+    accum_p = q_split[0]
+    accum_q = p_split[0]
+
+    intersection = np.intersect1d(accum_q, accum_p)
+    union = np.union1d(accum_q, accum_p)
+
+    fv[0] = intersection.size / union.size
+
+    for i in range(1, n):
+
+        accum_q = np.hstack([accum_q, q_split[i]])
+        accum_p = np.hstack([accum_p, p_split[i]])
+
+        intersection = np.intersect1d(accum_q, accum_p)
+        union = np.union1d(accum_q, accum_p)
+
+        fv[i] = intersection.size/union.size
+
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv
+
+
+def rank_features_interval_cid_jaccard(collmatches, cid, qidx, pidx, n, norm=False):
+
+    # For some idx 'qidx', gets the index in the dataset of the top-l, then gets the CID of those top-l
+    q_split_cid = np.array_split(cid[collmatches[qidx]], n)
+    # For some idx 'pidx', gets the index in the dataset of the top-l, then gets the CID of those top-l
+    p_split_cid = np.array_split(cid[collmatches[pidx]], n)
+
+    fv = np.zeros(n, dtype=np.float64)
+
+    for i in range(n):
+
+        intersection = np.intersect1d(q_split_cid[i], p_split_cid[i])
+        union = np.union1d(q_split_cid[i], p_split_cid[i])
+
+        fv[i] = intersection.size/union.size
+
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv
+
+
+def rank_features_cid_frequency_diff(collmatches, cid, qidx, i, norm=False):
+
+    i_topn_cid = cid[collmatches[i]]
+    q_topn_cid = cid[collmatches[qidx]]
+    nc = np.max(cid) + 1
+
+    q_freq = np.bincount(q_topn_cid, minlength=nc)
+    i_freq = np.bincount(i_topn_cid, minlength=nc)
+
+    fv = np.abs(q_freq - i_freq)
+
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv
+
+
+
+
 

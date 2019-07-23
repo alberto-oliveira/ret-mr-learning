@@ -79,7 +79,7 @@ def aggregate(method, **kwargs):
 
     elif method == 'combSUM_pre':
         aggr_names, aggr_scores = aggr_combSUM_pre(kwargs['names'], kwargs['scores'], kwargs['labels'],
-                                                   f=kwargs['f'], balance=kwargs['balance'], weights=None)
+                                                   f=kwargs['f'], weights=None)
 
     elif method == 'combSUM_avgw':
         aggr_names, aggr_scores = aggr_combSUM_post_avgw(kwargs['names'], kwargs['scores'], kwargs['labels'],
@@ -121,6 +121,10 @@ def aggregate(method, **kwargs):
 
     elif method == 'borda':
         aggr_names, aggr_scores = aggr_bordaCount(kwargs['names'], kwargs['scores'], kwargs['standings'])
+
+    elif method == 'borda_majw':
+        aggr_names, aggr_scores = aggr_bordaCount_post_majw(kwargs['names'], kwargs['scores'], kwargs['standings'],
+                                                            kwargs['labels'])
 
     return aggr_names, aggr_scores
 
@@ -225,7 +229,6 @@ def run_aggregation(dataset, aggconfig):
         aggr_names, aggr_scores = aggregate(aggmethod, **kwargs)
 
         agg_labels.append(reevaluate(aggr_names, qclass, topn))
-
 
     np.savez(respath, header=header_array, labels=np.vstack(agg_labels))
 

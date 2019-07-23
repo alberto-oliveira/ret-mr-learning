@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 import matlab.engine
 
-import ipdb as pdb
+#import ipdb as pdb
 
 np.random.seed(93311)
 
@@ -205,7 +205,7 @@ class StatMR(BaseEstimator):
 
         if n < self.__min_tail_sz:
             if self.v:
-                pdb.set_trace()
+                #pdb.set_trace()
                 print("# of unique scores is less than the minimum tail size of {0:d}".format(self.__min_tail_sz))
             return np.array([]), 0, 0
 
@@ -259,7 +259,7 @@ class StatMR(BaseEstimator):
 
     def statistical_mixture(self, data, f, z):
 
-        n_iter = 30
+        n_iter = 15
         inc_f = self.__min_tail_sz
         dec_f = self.__min_tail_sz
 
@@ -344,6 +344,9 @@ class StatMR(BaseEstimator):
         for f in f_range:
             for z in z_range:
 
+                if z <= f:
+                    continue
+
                 if self.v:
                     print("    |_ Iteration #{2:d}: f = {0:0.2f} and z = {1:0.2f}".format(f, z, icount),
                           file=sys.stdout, flush=True)
@@ -358,12 +361,11 @@ class StatMR(BaseEstimator):
 
                 t_values = np.array(t_values, dtype=np.float32).reshape(-1, 1)
 
-                predicted = (targetX >= t_values).astype(np.uint8).reshape(-1)
-
-                label = y.reshape(-1)
+                predicted = (targetX >= t_values).astype(np.uint8)
+                label = y[:, 1:]
 
                 np.seterr('ignore')
-                m = self.__eval_metric(label, predicted)
+                m = self.__eval_metric(label.reshape(-1), predicted[:, 1:].reshape(-1))
                 np.seterr('warn')
 
                 if self.v:

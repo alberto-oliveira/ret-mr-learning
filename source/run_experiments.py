@@ -25,11 +25,13 @@ def run_experiment(dataset_choices, expcfgfile, sval, ovw):
     if expcfg['DEFAULT']['type'] == 'stat':
         e_manager.run_statistical_mr_v2(expcfgfile, sampling=sval, overwrite=ovw)
     if expcfg['DEFAULT']['type'] == 'learn':
-        e_manager.run_learning_mr_v2(expcfgfile)
+        e_manager.run_pos_learning_mr_v2(expcfgfile)
     if expcfg['DEFAULT']['type'] == 'single_learn':
-        e_manager.run_single_learning_mr(expcfgfile)
-    if expcfg['DEFAULT']['type'] == 'stat_pos':
-        e_manager.run_stat_positional_mr(expcfgfile)
+        e_manager.run_single_learning_mr_v2(expcfgfile)
+    if expcfg['DEFAULT']['type'] == 'block_learn':
+        e_manager.run_block_learning_mr_v2(expcfgfile)
+    if expcfg['DEFAULT']['type'] == 'sequence_label':
+        e_manager.run_sequence_labeling_mr(expcfgfile)
 
     print("--- Done ---")
     return

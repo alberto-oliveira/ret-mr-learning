@@ -1,0 +1,14 @@
+[DEFAULT]
+expname=pos-learn.0008.irp.cid-frequency.k30
+topk=30
+type=learn
+
+[features]
+feat0=cid_freq_diff
+
+[parameters]
+normalize=True
+contextual_k=100
+
+[IRP]
+classifier=svc
