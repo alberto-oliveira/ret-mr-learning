@@ -19,7 +19,7 @@ classifier_map = dict(log=LogisticRegression,
                       svc=SVC,
                       rfor=RandomForestClassifier)
 
-import ipdb as pdb
+#import ipdb as pdb
 
 grid = [
   #{'C': [1, 10], 'kernel': ['linear']},
@@ -298,7 +298,7 @@ def run_sequence_labeling(features, labels, foldidx, seq_size):
 
     SCL = StandardScaler()
 
-    pdb.set_trace()
+    #pdb.set_trace()
 
     return [], []
 
