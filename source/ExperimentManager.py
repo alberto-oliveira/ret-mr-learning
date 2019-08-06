@@ -894,7 +894,7 @@ class ExperimentManager:
                 try:
                     feat_pack = np.load(glob.glob(self.__pathcfg[dkey]['feature'] + "*{0:s}*".format(featpack))[0])
                 except IndexError:
-                    print("-->", self.__pathcfg[dkey]['feature'] + "*{0:s}*".format(featpack))
+                    print("-->", self.__pathcfg[dkey]['feature'] + "*{0:s}*".format(featpack), file=sys.stderr)
                     raise IndexError
 
                 nk, n, v, d = feat_pack['features'].shape
