@@ -312,6 +312,7 @@ def run_sequence_labeling(sequences, labels, foldidx, seq_size):
     ssvm.fit(TRAIN_X, TRAIN_y)
 
     TEST_X = sequences[test_idx]
+    test_size = TEST_X.shape[0]
     TEST_y = labels[train_idx]
 
     TEST_X = SCL.transform(TEST_X.reshape(-1, d))
@@ -319,6 +320,7 @@ def run_sequence_labeling(sequences, labels, foldidx, seq_size):
 
     PRED_y = ssvm.predict(TEST_X)
     PRED_y = np.array(PRED_y)
+    PRED_y = PRED_y.reshape(test_size, k)
 
     return PRED_y, PRED_y
 

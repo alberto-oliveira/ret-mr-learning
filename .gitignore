@@ -1,14 +1,16 @@
 *.rk
 results/
+archival/
 misc./
 output/
 input-ranks/
 input-labels/
 input-fv/
+input-seq_fv/
 input-coll_matches/
 input-mod_labels/
 output-agg/
-source/path_2.cfg
+source/*.cfg
 condor/
 source/deprecated/
 source/notebooks/.ipynb_checkpoints/
