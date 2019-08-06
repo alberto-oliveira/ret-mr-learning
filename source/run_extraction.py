@@ -31,6 +31,8 @@ def run_extraction(dataset_choices, expconfig):
 
     extr = None
 
+    expname = expcfg.get('DEFAULT', 'expname')
+
     for dataset in dataset_choices:
         for r in dataset_choices[dataset]:
 
@@ -38,7 +40,7 @@ def run_extraction(dataset_choices, expconfig):
             rktpname = pathcfg[dkey]['rktpdir']
 
             print(". Running Extraction on: {0:s}.{1:s}".format(dataset, rktpname))
-            print(". Experiment: ", expcfg['DEFAULT']['expname'])
+            print(". Experiment: ", expname)
 
             lblfpath = glob.glob(pathcfg[dkey]["label"] + "*" + rktpname + "*")[0]
 
@@ -56,8 +58,9 @@ def run_extraction(dataset_choices, expconfig):
 
             extr = Extractor(expcfg, **collectionargs)
 
+            featname = expcfg.get('DEFAULT', 'features', fallback=expname)
             outfile = "{0:s}{1:s}.{2:s}".format(pathcfg[dkey]["feature"],
-                                                dkey, expcfg['DEFAULT']['expname'])  # NPZ output file
+                                                dkey, featname)  # NPZ output file
 
             extr.extract(pathcfg[dkey]["rank"], lblfpath, outfile, matlab_engine=matlab_engine)
 
