@@ -783,7 +783,11 @@ class ExperimentManager:
                 print(". Running <Sequence Labeling MR - IRP> for ", dataset, " -- ", rktpname)
                 print(". Experiment name: ", expname)
 
-                feat_pack = np.load(glob.glob(self.__pathcfg[dkey]['seqfeature'] + "*{0:s}*".format(featpack_name))[0])
+                try:
+                    feat_pack = np.load(glob.glob(self.__pathcfg[dkey]['seqfeature'] + "*{0:s}*".format(featpack_name))[0])
+                except IndexError:
+                    print("-->", self.__pathcfg[dkey]['seqfeature'] + "*{0:s}*".format(featpack_name), file=sys.stderr)
+                    raise IndexError
 
                 sequences = feat_pack['features']
                 labels = feat_pack['labels']
