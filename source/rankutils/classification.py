@@ -286,21 +286,41 @@ def run_block_classification(features, labels, foldidx, cname, bs, be, get_valid
         return pred_list, prob_list
 
 
-def run_sequence_labeling(features, labels, foldidx, seq_size):
+def run_sequence_labeling(sequences, labels, foldidx, seq_size):
 
-    p, n, _ = labels.shape
-    labels_ = labels.reshape(p, n)
+    from pystruct.models import ChainCRF, BinaryClf, MultiLabelClf
+    from pystruct.learners import NSlackSSVM
 
-    features_ = np.transpose(features, [1, 0, 2])
-    labels_ = np.transpose(labels_)
+    import ipdb as pdb
+
+    n, k, d = sequences.shape
 
     train_idx, test_idx = foldidx
-
     SCL = StandardScaler()
 
-    #pdb.set_trace()
+    TRAIN_X = sequences[train_idx]
+    TRAIN_y = labels[train_idx]
 
-    return [], []
+    TRAIN_X = SCL.fit_transform(TRAIN_X.reshape(-1, d))
+    TRAIN_X = TRAIN_X.reshape(-1, seq_size, d)
+
+    TRAIN_y = TRAIN_y.reshape(-1, seq_size)
+
+    model = ChainCRF()
+    ssvm = NSlackSSVM(model=model, max_iter=500)
+
+    ssvm.fit(TRAIN_X, TRAIN_y)
+
+    TEST_X = sequences[test_idx]
+    TEST_y = labels[train_idx]
+
+    TEST_X = SCL.transform(TEST_X.reshape(-1, d))
+    TEST_X = TEST_X.reshape(-1, seq_size, d)
+
+    PRED_y = ssvm.predict(TEST_X)
+    PRED_y = np.array(PRED_y)
+
+    return PRED_y, PRED_y
 
 
 

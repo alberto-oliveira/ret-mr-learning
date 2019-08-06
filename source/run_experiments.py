@@ -32,6 +32,8 @@ def run_experiment(dataset_choices, expcfgfile, sval, ovw):
         e_manager.run_block_learning_mr_v2(expcfgfile)
     if expcfg['DEFAULT']['type'] == 'sequence_label':
         e_manager.run_sequence_labeling_mr(expcfgfile)
+    if expcfg['DEFAULT']['type'] == 'late_fusion':
+        e_manager.run_late_fusion(expcfgfile)
 
     print("--- Done ---")
     return

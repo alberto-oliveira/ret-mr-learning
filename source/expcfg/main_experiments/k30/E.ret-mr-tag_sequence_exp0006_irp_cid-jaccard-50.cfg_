@@ -1,0 +1,16 @@
+[DEFAULT]
+expname=seq-label.0006.irp.cid-jaccard-20-100.k30
+topk=30
+type=sequence_label
+sequence_size=30
+
+[features]
+feat0=cid_jacc
+
+[parameters]
+normalize=True
+num_intervals=20
+contextual_k=100
+
+[IRP]
+classifier=svc

@@ -8,7 +8,13 @@ m0=stat.0001.irp.weibull-fixed.k30
 m1=pos-learn.0001.irp.deltac_i-64.k30.svc
 m2=pos-learn.0002.irp.sdct40.k30.svc
 m3=pos-learn.0003.irp.clust-diff-64.k30.svc
-
-
+m4=pos-learn.0005.irp.accum-rank-jaccard-50.k30.svc
+m5=pos-learn.0006.irp.cid-jaccard-20-100.k30.svc
 
 [weights]
+w0=1.0
+w1=1.0
+w2=1.0
+w3=1.0
+w4=1.0
+w5=1.0
