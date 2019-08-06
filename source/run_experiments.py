@@ -6,16 +6,17 @@ import argparse
 
 from rankutils.mappings import ranking_type_map
 from rankutils.cfgloader import cfgloader
+from rankutils.utilities import completedir
 
 from ExperimentManager import ExperimentManager
 
 
-def run_experiment(dataset_choices, expcfgfile, sval, ovw):
+def run_experiment(dataset_choices, expcfgfile, sval, ovw, rootpath):
 
-    e_manager = ExperimentManager(pathcfg="/home/alberto/phD/projects/performance_prediction/ret-mr-learning/source/"
-                                          "path_2.cfg",
-                                  dbparamscfg="/home/alberto/phD/projects/performance_prediction/ret-mr-learning/"
-                                              "source/dbparams.cfg")
+    rootpath = completedir(rootpath)
+
+    e_manager = ExperimentManager(pathcfg="{rootpath}path_2.cfg".format(rootpath=rootpath),
+                                  dbparamscfg="{rootpath}dbparams.cfg".format(rootpath=rootpath))
 
     expcfg = cfgloader(expcfgfile)
     e_manager.set_experiment_map(dataset_choices)
@@ -57,6 +58,9 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--overwrite", help="Overwrite existing files.",
                         action="store_true")
 
+    parser.add_argument("-r", "--rootpath", help="Root directory with path and dbparams file.",
+                        type=str, default='./')
+
     args = parser.parse_args()
 
     if args.dataset == "all":
@@ -73,4 +77,4 @@ if __name__ == "__main__":
             print("Choices are: ", ranking_type_map[args.dataset], "   Exiting\n---")
             sys.exit(2)
 
-    run_experiment(dataset_choices, args.expconfig, args.sampling, args.overwrite)
+    run_experiment(dataset_choices, args.expconfig, args.sampling, args.overwrite, args.rootpath)

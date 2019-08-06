@@ -5,6 +5,7 @@ output/
 input-ranks/
 input-labels/
 input-fv/
+input-coll_matches/
 input-mod_labels/
 output-agg/
 source/path_2.cfg
