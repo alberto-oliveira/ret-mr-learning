@@ -891,7 +891,12 @@ class ExperimentManager:
                 print(". Running <Learning MR - IRP> for ", dataset, " -- ", rktpname)
                 print(". Experiment name: ", expname)
 
-                feat_pack = np.load(glob.glob(self.__pathcfg[dkey]['feature'] + "*{0:s}*".format(featpack))[0])
+                try:
+                    feat_pack = np.load(glob.glob(self.__pathcfg[dkey]['feature'] + "*{0:s}*".format(featpack))[0])
+                except IndexError:
+                    print("-->", self.__pathcfg[dkey]['feature'] + "*{0:s}*".format(featpack))
+                    raise IndexError
+
                 nk, n, v, d = feat_pack['features'].shape
 
                 assert v == 1, "learning v2 does not working with multi-variation approach. " \
