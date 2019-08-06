@@ -291,7 +291,7 @@ def run_sequence_labeling(sequences, labels, foldidx, seq_size):
     from pystruct.models import ChainCRF, BinaryClf, MultiLabelClf
     from pystruct.learners import NSlackSSVM
 
-    import ipdb as pdb
+    #import ipdb as pdb
 
     n, k, d = sequences.shape
 
