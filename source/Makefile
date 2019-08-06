@@ -8,15 +8,16 @@ RKTPNUM?=1
 CFGDIR?="./expcfg/"
 CFGPATH?=$(CFGDIR)$(CFGNAME)
 OUTROOT?="../output/2x5-fold/"
+ROOTPATH?="./"
 
 extraction: run_extraction.py
 	python run_extraction.py $(DATASET) $(RKTPNUM) $(CFGPATH)
 
 experiment: run_experiments.py
 ifndef SAMPLE
-	python run_experiments.py $(DATASET) $(RKTPNUM) $(CFGPATH) $(OVW)
+	python run_experiments.py $(DATASET) $(RKTPNUM) $(CFGPATH) $(OVW) -r $(ROOTPATH)
 else
-	python run_experiments.py $(DATASET) $(RKTPNUM) $(CFGPATH) -s $(SAMPLE) $(OVW)
+	python run_experiments.py $(DATASET) $(RKTPNUM) $(CFGPATH) -s $(SAMPLE) -r $(ROOTPATH) $(OVW)
 endif
 
 pipeline: extraction experiment
