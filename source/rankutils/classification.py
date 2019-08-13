@@ -332,7 +332,7 @@ def run_strc_classification(sequences, labels, foldidx, seq_size, cname):
 def run_sequence_labeling(sequences, labels, foldidx, seq_size, cname):
 
     from seqlearn.perceptron import StructuredPerceptron
-    from seqlearn.hmm import MultinomialHMM
+    #from seqlearn.hmm import MultinomialHMM
 
     #import ipdb as pdb
 
@@ -351,7 +351,8 @@ def run_sequence_labeling(sequences, labels, foldidx, seq_size, cname):
     if cname == "sperc":
         clf = StructuredPerceptron(verbose=0, lr_exponent=1.0, max_iter=1000)
     if cname == "hmm":
-        clf = MultinomialHMM()
+        #clf = MultinomialHMM()
+        raise TypeError("hmm unsupported")
     clf.fit(TRAIN_X, TRAIN_y, lengths_train)
 
     TEST_X = sequences[test_idx]
