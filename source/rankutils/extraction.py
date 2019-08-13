@@ -110,6 +110,7 @@ class Extractor:
         self.__density_check = False
         self.__fit_check = False
         self.__contextual_check = False
+        self.__correlation_check = False
 
         self.__feature_queue = []
         self.__fv_dim = 0
@@ -171,19 +172,19 @@ class Extractor:
                               " result in a crash", RuntimeWarning)
 
         if self.__contextual_check and self.__namelist is None:
-            raise ValueError("Contextual <rank_jacc> features requires a valid namelist. "
+            raise ValueError("Contextual features requires a valid namelist. "
                              "Did you pass a valid namelist file path argument?")
 
         if self.__contextual_check and self.__collmatches is None:
-            raise ValueError("Contextual <rank_jacc> features requires a valid collection matching indices file. "
+            raise ValueError("Contextual features requires a valid collection matching indices file. "
                              "Did you pass a valid collection matches file path argument?")
 
         if self.__density_check and self.__namelist is None:
-            raise ValueError("Statistical (<emd>, <query_bhatt>) features requires a valid namelist. "
+            raise ValueError("Statistical features requires a valid namelist. "
                              "Did you pass a valid namelist file path argument?")
 
         if self.__density_check and self.__distfitparams is None:
-            raise ValueError("Statistical (<emd>, <query_bhatt>) features requires a valid fit parameters array. "
+            raise ValueError("Statistical features requires a valid fit parameters array. "
                              "Did you pass a valid distribution file dir argument?")
 
     def update_namelist(self, namefpath):
