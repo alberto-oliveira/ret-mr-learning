@@ -11,7 +11,7 @@ OUTROOT?="../output/2x5-fold/"
 ROOTPATH?="./"
 
 extraction: run_extraction.py
-	python run_extraction.py $(DATASET) $(RKTPNUM) $(CFGPATH)
+	python run_extraction.py $(DATASET) $(RKTPNUM) $(CFGPATH) -r $(ROOTPATH)
 
 experiment: run_experiments.py
 ifndef SAMPLE
