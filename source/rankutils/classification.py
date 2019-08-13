@@ -19,8 +19,6 @@ classifier_map = dict(log=LogisticRegression,
                       svc=SVC,
                       rfor=RandomForestClassifier)
 
-#import ipdb as pdb
-
 grid = [
   #{'C': [1, 10], 'kernel': ['linear']},
   {'C': [0.1, 1, 10], 'gamma': ['scale'], 'kernel': ['rbf']}
@@ -286,12 +284,12 @@ def run_block_classification(features, labels, foldidx, cname, bs, be, get_valid
         return pred_list, prob_list
 
 
-def run_sequence_labeling(sequences, labels, foldidx, seq_size):
+def run_strc_classification(sequences, labels, foldidx, seq_size, cname):
 
-    from pystruct.models import ChainCRF, BinaryClf, MultiLabelClf
-    from pystruct.learners import NSlackSSVM
+    from pystruct.models import ChainCRF, GraphCRF
+    from pystruct.learners import NSlackSSVM, OneSlackSSVM, FrankWolfeSSVM, StructuredPerceptron
 
-    #import ipdb as pdb
+    import ipdb as pdb
 
     n, k, d = sequences.shape
 
@@ -307,9 +305,15 @@ def run_sequence_labeling(sequences, labels, foldidx, seq_size):
     TRAIN_y = TRAIN_y.reshape(-1, seq_size)
 
     model = ChainCRF()
-    ssvm = NSlackSSVM(model=model, max_iter=500)
 
-    ssvm.fit(TRAIN_X, TRAIN_y)
+    if cname == '1slack':
+        sclf = OneSlackSSVM(model=model, C=1, max_iter=1000, verbose=0)
+    elif cname == 'nslack':
+        sclf = NSlackSSVM(model=model, max_iter=250, verbose=0)
+    elif cname == 'sperc_2':
+        sclf = StructuredPerceptron(model=model, max_iter=100)
+
+    sclf.fit(TRAIN_X, TRAIN_y)
 
     TEST_X = sequences[test_idx]
     test_size = TEST_X.shape[0]
@@ -318,9 +322,46 @@ def run_sequence_labeling(sequences, labels, foldidx, seq_size):
     TEST_X = SCL.transform(TEST_X.reshape(-1, d))
     TEST_X = TEST_X.reshape(-1, seq_size, d)
 
-    PRED_y = ssvm.predict(TEST_X)
+    PRED_y = sclf.predict(TEST_X)
     PRED_y = np.array(PRED_y)
     PRED_y = PRED_y.reshape(test_size, k)
+
+    return PRED_y, PRED_y
+
+
+def run_sequence_labeling(sequences, labels, foldidx, seq_size, cname):
+
+    from seqlearn.perceptron import StructuredPerceptron
+    from seqlearn.hmm import MultinomialHMM
+
+    #import ipdb as pdb
+
+    n, k, d = sequences.shape
+
+    train_idx, test_idx = foldidx
+    SCL = StandardScaler()
+
+    TRAIN_X = sequences[train_idx]
+    TRAIN_y = labels[train_idx]
+
+    TRAIN_X = SCL.fit_transform(TRAIN_X.reshape(-1, d))
+    TRAIN_y = TRAIN_y.reshape(-1)
+    lengths_train = np.ones(int(TRAIN_X.shape[0]/seq_size), dtype=np.uint8)*seq_size
+
+    if cname == "sperc":
+        clf = StructuredPerceptron(verbose=0, lr_exponent=1.0, max_iter=1000)
+    if cname == "hmm":
+        clf = MultinomialHMM()
+    clf.fit(TRAIN_X, TRAIN_y, lengths_train)
+
+    TEST_X = sequences[test_idx]
+
+    TEST_X = SCL.transform(TEST_X.reshape(-1, d))
+    lengths_test = np.ones(int(TEST_X.shape[0]/seq_size), dtype=np.uint8)*seq_size
+
+    PRED_y = clf.predict(TEST_X, lengths=lengths_test)
+
+    PRED_y = PRED_y.reshape(test_idx.size, k)
 
     return PRED_y, PRED_y
 

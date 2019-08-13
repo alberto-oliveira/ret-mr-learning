@@ -781,7 +781,8 @@ class ExperimentManager:
                 rktpname = self.__pathcfg[dkey]['rktpdir']
 
                 print(". Running <Sequence Labeling MR - IRP> for ", dataset, " -- ", rktpname)
-                print(". Experiment name: ", expname)
+                print(". Experiment name:", expname)
+                print(". Cname:", cname)
 
                 try:
                     feat_pack = np.load(glob.glob(self.__pathcfg[dkey]['seqfeature'] + "*{0:s}*".format(featpack_name))[0])
@@ -825,6 +826,8 @@ class ExperimentManager:
                 # and 1 is test first, train last
                 splits = np.zeros((rounds, n, k), dtype=np.uint8)
 
+                bseed=11339
+                print("bseed:", bseed)
                 rkfold = RepeatedKFold(n_splits=2, n_repeats=rounds, random_state=bseed)
                 splitgen = rkfold.split(sequences)
 
@@ -834,7 +837,15 @@ class ExperimentManager:
                     # 1st split
                     train_idx, test_idx = next(splitgen)
 
-                    pred, prob = run_sequence_labeling(sequences, labels, [train_idx, test_idx], seq_size)
+                    if cname == "sperc" or cname == "hmm":
+                        pred, prob = run_sequence_labeling(sequences, labels, [train_idx, test_idx], seq_size, cname)
+                    elif cname == "1slack" or cname == "nslack" or cname == "fwolf" or cname == "sperc_2":
+                        pred, prob = run_strc_classification(sequences, labels, [train_idx, test_idx], seq_size, cname)
+                    else:
+                        raise TypeError("Supported classifiers are: {Structured Perceptron (sperc), "
+                                        "Hidden Markov Model (hmm), One Slack Str. SVM (1slack), "
+                                        "N Slack Str. SVM (nslack), Frank Wolfe Str. SVM (fwolf),"
+                                        "Structured Percepron PYSTRUCT (sperc_2}")
 
                     # test_idx has the sample indices which have been predicted for the 1st split of round <r> and
                     # for position <m> of the rank. We change those values in the <predicted> array to match the
@@ -846,7 +857,15 @@ class ExperimentManager:
                     # 2nd split -- train from 1st split is test here, and vice-versa
                     train_idx, test_idx = next(splitgen)
 
-                    pred, prob = run_sequence_labeling(sequences, labels, [train_idx, test_idx], seq_size)
+                    if cname == "sperc" or cname == "hmm":
+                        pred, prob = run_sequence_labeling(sequences, labels, [train_idx, test_idx], seq_size, cname)
+                    elif cname == "1slack" or cname == "nslack" or cname == "fwolf" or cname == "sperc_2":
+                        pred, prob = run_strc_classification(sequences, labels, [train_idx, test_idx], seq_size, cname)
+                    else:
+                        raise TypeError("Supported classifiers are: {Structured Perceptron (sperc), "
+                                        "Hidden Markov Model (hmm), One Slack Str. SVM (1slack), "
+                                        "N Slack Str. SVM (nslack), Frank Wolfe Str. SVM (fwolf),"
+                                        "Structured Percepron PYSTRUCT (sperc_2}")
 
                     # test_idx has the sample indices which have been predicted for the 2nd split of round <r> and
                     # for position <m> of the rank. We change those values in the <predicted> array to match the

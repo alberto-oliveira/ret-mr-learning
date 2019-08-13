@@ -43,6 +43,9 @@ def get_rank_feature(featalias, **ka):
         i = ka['topk_idx'][ka['i']]
         return rank_features_cid_frequency_diff(ka['coll_matches'], ka['cid_list'], ka['query_idx'], i, ka['norm'])
 
+    elif featalias == 'ktau_top':
+        return rank_features_topk_correlation(ka['corr_mat'], ka['i'])
+
     else:
         raise ValueError("<{0:s}> is not a valid feature alias. ".format(featalias))
 
@@ -178,6 +181,11 @@ def rank_features_cluster_diff(scores, i, k, c, centers=[], norm=False):
         return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
     else:
         return fv
+
+
+def rank_features_raw_scores(scores, i):
+
+    return scores[i]
 
 
 def rank_features_density_distance(densities, edges, i, distmat=np.array([]), norm=False):
@@ -319,6 +327,8 @@ def rank_features_cid_frequency_diff(collmatches, cid, qidx, i, norm=False):
         return fv
 
 
+def rank_features_topk_correlation(corrmat, i):
 
+    return corrmat[i]
 
 

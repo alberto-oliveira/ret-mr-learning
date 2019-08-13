@@ -307,3 +307,8 @@ def name_from_rankfile(rkpath):
     basename = parts[1]
 
     return basename
+
+
+from seqlearn.datasets import load_conll
+from seqlearn.perceptron import StructuredPerceptron
+clf = StructuredPerceptron()

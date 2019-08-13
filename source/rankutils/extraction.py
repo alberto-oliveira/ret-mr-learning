@@ -13,7 +13,7 @@ from tqdm import tqdm
 from rankutils.utilities import getbasename, get_index
 from rankutils.features import get_rank_feature
 from rankutils.rIO import read_rank
-from rankutils.statistical import ev_density_approximation, ev_fit
+from rankutils.statistical import ev_density_approximation, ev_fit, ktau_matrix
 from rankutils.clustering import clustering_1d
 
 
@@ -158,6 +158,11 @@ class Extractor:
                     # When counting the frequencies of CID, the size of the feature vector is the number of different
                     # CIDs. Because CIDs are indexed from 0, that number is the maximum CID value + 1
                     self.__fv_dim += np.max(self.__namelist['cid']) + 1
+
+                if featalias == 'ktau_top':
+                    self.__contextual_check = True
+                    self.__correlation_check = True
+                    self.__fv_dim += self.__topk
 
         if 'collmatches_fpath' in collecionargs and self.__contextual_check:
             try:
@@ -345,6 +350,9 @@ class Extractor:
 
                     gfvargs['cid_list'] = self.__namelist['cid']
 
+                if self.__correlation_check:
+                    gfvargs['corr_mat'] = ktau_matrix(gfvargs['coll_matches'], gfvargs['topk_idx'])
+                    #pdb.set_trace()
 
                 ### Extraction ###
                 # Per top-k extraction

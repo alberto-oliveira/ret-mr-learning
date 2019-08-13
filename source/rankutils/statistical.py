@@ -4,6 +4,36 @@
 import numpy as np
 
 
+def ktau_matrix(collmatches, idx):
+
+    from scipy.stats import kendalltau
+
+    k = idx.size
+
+    corrmat = np.ones((k, k), dtype=np.float64)
+
+    for i in range(k):
+        for j in range(i+1, k):
+
+            a = collmatches[idx[i]]
+            b = collmatches[idx[j]]
+
+            ml = np.max([a.max(), b.max()])
+
+            w = np.arange(a.size, 0, -1)
+
+            bc_a = np.bincount(a, weights=w, minlength=ml+1)
+            bc_b = np.bincount(b, weights=w, minlength=ml+1)
+
+            tau, _ = kendalltau(bc_a, bc_b)
+
+            corrmat[i, j] = tau
+            corrmat[j, i] = tau
+
+    return corrmat
+
+
+
 def EMD(densa, edgesa, densb, edgesb):
 
     from scipy.stats import wasserstein_distance
