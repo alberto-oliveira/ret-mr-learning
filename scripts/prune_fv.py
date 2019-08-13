@@ -39,7 +39,7 @@ if __name__ == "__main__":
             # pdb.set_trace()
 
             in_fvpath = glob.glob("{0:s}*{1:s}*".format(sfvdir, fvname))[0]
-            out_sfvpath = "{0:s}{1:s}".format(sfvdir, outfvname)
+            out_sfvpath = "{0:s}{1:s}.{2:s}".format(sfvdir, expkey, outfvname)
 
             print("   ->", in_fvpath)
             print("   ->", out_sfvpath)
@@ -56,4 +56,6 @@ if __name__ == "__main__":
             out_fv['labels'] = in_fv['labels'][:, 0:nk, :]
 
             np.savez_compressed(out_sfvpath, **out_fv)
+
+
 
