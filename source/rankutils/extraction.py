@@ -7,7 +7,6 @@ import numpy.random as npran
 import glob
 import warnings
 
-#import ipdb as pdb
 from tqdm import tqdm
 
 from rankutils.utilities import getbasename, get_index
@@ -342,7 +341,8 @@ class Extractor:
                     try:
                         gfvargs['query_idx'] = np.argwhere(self.__namelist['name'] == aux)[0, 0]
                     except:
-                        pdb.set_trace()
+                        pass
+                        #pdb.set_trace()
 
                     gfvargs['topk_idx'] = np.zeros(self.__topk, dtype=np.int32) - 1
                     for r in range(0, self.__topk):

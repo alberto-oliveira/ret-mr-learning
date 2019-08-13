@@ -15,8 +15,6 @@ from rankutils.utilities import safe_create_dir, getbasename, get_index
 from rankutils.mappings import ranking_type_map
 from rankutils.statistical import ev_density_approximation
 
-import ipdb as pdb
-
 import matlab
 import matlab.engine
 matlab_engine = matlab.engine.start_matlab()
