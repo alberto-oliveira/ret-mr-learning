@@ -22,11 +22,11 @@ import matlab.engine
 matlab_engine = matlab.engine.start_matlab()
 
 
-def run_extraction(dataset_choices, expconfig):
+def run_extraction(dataset_choices, expconfig, rootpath):
 
     np.set_printoptions(precision=3, linewidth=500, suppress=True)
 
-    pathcfg = cfgloader("path_2.cfg")
+    pathcfg = cfgloader("{rootpath}path_2.cfg".format(rootpath=rootpath))
     expcfg = cfgloader(expconfig)
 
     extr = None
@@ -83,6 +83,9 @@ if __name__ == "__main__":
     parser.add_argument("expconfig", help="Path to experiment .cfg file",
                         type=str)
 
+    parser.add_argument("-r", "--rootpath", help="Root directory with path and dbparams file.",
+                        type=str, default='./')
+
     args = parser.parse_args()
 
     dataset = args.dataset
@@ -102,4 +105,4 @@ if __name__ == "__main__":
             print("Unavailable raking-type number {0:d} for dataset {1:s}.".format(args.descnum, args.dataset))
             print("Choices are: ", ranking_type_map[args.dataset], "   Exiting\n---")
 
-    run_extraction(dataset_choices, expconfig)
+    run_extraction(dataset_choices, expconfig, args.rootpath)
