@@ -5,6 +5,7 @@ import sys, os
 import argparse
 import glob
 import time
+import warnings
 
 import numpy as np
 
@@ -15,9 +16,12 @@ from rankutils.utilities import safe_create_dir, getbasename, get_index
 from rankutils.mappings import ranking_type_map
 from rankutils.statistical import ev_density_approximation
 
-import matlab
-import matlab.engine
-matlab_engine = matlab.engine.start_matlab()
+try:
+    import matlab
+    import matlab.engine
+    matlab_engine = matlab.engine.start_matlab()
+except ModuleNotFoundError:
+    matlab_engine = None
 
 
 def run_extraction(dataset_choices, expconfig, rootpath):
