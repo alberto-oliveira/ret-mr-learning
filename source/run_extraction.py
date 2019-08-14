@@ -66,7 +66,10 @@ def run_extraction(dataset_choices, expconfig, rootpath):
 
             extr.extract(pathcfg[dkey]["rank"], lblfpath, outfile, matlab_engine=matlab_engine)
 
-    matlab_engine.quit()
+    try:
+        matlab_engine.quit()
+    except AttributeError:
+        pass
 
 
 if __name__ == "__main__":

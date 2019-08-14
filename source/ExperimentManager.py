@@ -767,7 +767,8 @@ class ExperimentManager:
         expcfg = cfgloader(expconfig)
 
         expname = expcfg['DEFAULT']['expname']
-        cname = expcfg['IRP']['classifier']
+        cname = expcfg.get('IRP', 'classifier', fallback='1slack')
+        mname = expcfg.get('IRP', 'model', fallback='crf')
         k = expcfg['DEFAULT'].getint('topk')
         featpack_name = expcfg.get('DEFAULT', 'features', fallback=expname)
         prob = expcfg.getboolean('DEFAULT', 'probability', fallback=False)
@@ -802,8 +803,9 @@ class ExperimentManager:
 
                 assert k % seq_size == 0, "k <{0:d}> should be divisible by seq_size <{1:d}>".format(k, seq_size)
 
-                outdir = self.__pathcfg[dkey]['output'] + "{expname:s}.{cfname:s}/".format(expname=expname,
-                                                                                           cfname=cname)
+                outdir = self.__pathcfg[dkey]['output'] + "{expname:s}.{clsf:s}.{method:s}/".format(expname=expname,
+                                                                                                    clsf=cname,
+                                                                                                    method=mname)
 
                 n, _, _ = sequences.shape
 
@@ -840,7 +842,8 @@ class ExperimentManager:
                     if cname == "sperc" or cname == "hmm":
                         pred, prob = run_sequence_labeling(sequences, labels, [train_idx, test_idx], seq_size, cname)
                     elif cname == "1slack" or cname == "nslack" or cname == "fwolf" or cname == "sperc_2":
-                        pred, prob = run_strc_classification(sequences, labels, [train_idx, test_idx], seq_size, cname)
+                        pred, prob = run_strc_classification(sequences, labels, [train_idx, test_idx],
+                                                             seq_size, cname, mname)
                     else:
                         raise TypeError("Supported classifiers are: {Structured Perceptron (sperc), "
                                         "Hidden Markov Model (hmm), One Slack Str. SVM (1slack), "
@@ -860,7 +863,8 @@ class ExperimentManager:
                     if cname == "sperc" or cname == "hmm":
                         pred, prob = run_sequence_labeling(sequences, labels, [train_idx, test_idx], seq_size, cname)
                     elif cname == "1slack" or cname == "nslack" or cname == "fwolf" or cname == "sperc_2":
-                        pred, prob = run_strc_classification(sequences, labels, [train_idx, test_idx], seq_size, cname)
+                        pred, prob = run_strc_classification(sequences, labels, [train_idx, test_idx],
+                                                             seq_size, cname, mname)
                     else:
                         raise TypeError("Supported classifiers are: {Structured Perceptron (sperc), "
                                         "Hidden Markov Model (hmm), One Slack Str. SVM (1slack), "

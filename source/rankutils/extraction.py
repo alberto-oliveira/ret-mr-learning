@@ -123,6 +123,9 @@ class Extractor:
                 #print("-> ", featalias)
                 self.__feature_queue.append(featalias)
 
+                if featalias == 'raw_scores':
+                    self.__fv_dim += 1
+
                 if featalias == 'cluster_diff' and not self.__cluster_check:
                     self.__cluster_check = True
                     self.__fv_dim += self.__cluster_num

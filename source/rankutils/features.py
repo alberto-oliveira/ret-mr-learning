@@ -13,7 +13,9 @@ from jenkspy import jenks_breaks
 
 def get_rank_feature(featalias, **ka):
 
-    if featalias == 'dct':
+    if featalias == 'raw_scores':
+        return  rank_features_raw_scores(ka['scores'], ka['i'])
+    elif featalias == 'dct':
         return rank_features_kDCT(ka['scores'], ka['topk'], ka['dct_type'], ka['norm'])
     elif featalias == 'dct_shift':
         return rank_features_shiftDCT(ka['scores'], ka['i'], ka['dct_range'], ka['dct_type'], ka['norm'])

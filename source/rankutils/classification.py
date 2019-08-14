@@ -284,12 +284,12 @@ def run_block_classification(features, labels, foldidx, cname, bs, be, get_valid
         return pred_list, prob_list
 
 
-def run_strc_classification(sequences, labels, foldidx, seq_size, cname):
+def run_strc_classification(sequences, labels, foldidx, seq_size, cname, mname):
 
-    from pystruct.models import ChainCRF, GraphCRF
+    from pystruct.models import ChainCRF, MultiLabelClf
     from pystruct.learners import NSlackSSVM, OneSlackSSVM, FrankWolfeSSVM, StructuredPerceptron
 
-    import ipdb as pdb
+    #import ipdb as pdb
 
     n, k, d = sequences.shape
 
@@ -304,15 +304,17 @@ def run_strc_classification(sequences, labels, foldidx, seq_size, cname):
 
     TRAIN_y = TRAIN_y.reshape(-1, seq_size)
 
-    model = ChainCRF()
+    if mname == 'crf':
+        model = ChainCRF(directed=False)
 
     if cname == '1slack':
-        sclf = OneSlackSSVM(model=model, C=1, max_iter=1000, verbose=0)
+        sclf = OneSlackSSVM(model=model, C=1, max_iter=100, verbose=0)
     elif cname == 'nslack':
         sclf = NSlackSSVM(model=model, max_iter=250, verbose=0)
     elif cname == 'sperc_2':
         sclf = StructuredPerceptron(model=model, max_iter=100)
 
+    #pdb.set_trace()
     sclf.fit(TRAIN_X, TRAIN_y)
 
     TEST_X = sequences[test_idx]
