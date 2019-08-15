@@ -809,11 +809,6 @@ class ExperimentManager:
 
                 n, _, _ = sequences.shape
 
-                #if os.path.isdir(outdir):
-                    #shutil.rmtree(outdir)
-
-                safe_create_dir(outdir)
-
                 # Stores the predicted labels for each round. The third dimension of size <rounds> aggregated the
                 # predictions for both splits. To differentiate the train/test splits, the 'splits' array should
                 # be used
@@ -882,6 +877,11 @@ class ExperimentManager:
                     # Since train_idx is storing the training indices for train 2nd, we change those to 1, at round
                     # <r> and for rank position <m>
                     splits[r, train_idx, :] = 1
+
+                if os.path.isdir(outdir):
+                    shutil.rmtree(outdir)
+
+                safe_create_dir(outdir)
 
                 outfile = "{0:s}{1:s}_{2:d}rounds2splits_top{3:d}_irp".format(outdir, dkey, rounds, k)
                 np.save(outfile, predicted)
