@@ -839,9 +839,9 @@ class ExperimentManager:
                     # 1st split
                     train_idx, test_idx = next(splitgen)
 
-                    if cname == "sperc" or cname == "hmm":
+                    if cname == "sperc_2" or cname == "hmm":
                         pred, prob = run_sequence_labeling(sequences, labels, [train_idx, test_idx], seq_size, cname)
-                    elif cname == "1slack" or cname == "nslack" or cname == "fwolf" or cname == "sperc_2":
+                    elif cname == "1slack" or cname == "nslack" or cname == "fwolf" or cname == "sperc":
                         pred, prob = run_strc_classification(sequences, labels, [train_idx, test_idx],
                                                              seq_size, cname, mname)
                     else:
@@ -860,9 +860,9 @@ class ExperimentManager:
                     # 2nd split -- train from 1st split is test here, and vice-versa
                     train_idx, test_idx = next(splitgen)
 
-                    if cname == "sperc" or cname == "hmm":
+                    if cname == "sperc_2" or cname == "hmm":
                         pred, prob = run_sequence_labeling(sequences, labels, [train_idx, test_idx], seq_size, cname)
-                    elif cname == "1slack" or cname == "nslack" or cname == "fwolf" or cname == "sperc_2":
+                    elif cname == "1slack" or cname == "nslack" or cname == "fwolf" or cname == "sperc":
                         pred, prob = run_strc_classification(sequences, labels, [train_idx, test_idx],
                                                              seq_size, cname, mname)
                     else:

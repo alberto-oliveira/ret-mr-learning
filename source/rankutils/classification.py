@@ -311,8 +311,8 @@ def run_strc_classification(sequences, labels, foldidx, seq_size, cname, mname):
         sclf = OneSlackSSVM(model=model, C=1, max_iter=2500, verbose=0, n_jobs=6)
     elif cname == 'nslack':
         sclf = NSlackSSVM(model=model, max_iter=250, verbose=0)
-    elif cname == 'sperc_2':
-        sclf = StructuredPerceptron(model=model, max_iter=100)
+    elif cname == 'sperc':
+        sclf = StructuredPerceptron(model=model, max_iter=2500, n_jobs=6)
 
     #pdb.set_trace()
     sclf.fit(TRAIN_X, TRAIN_y)
@@ -350,7 +350,7 @@ def run_sequence_labeling(sequences, labels, foldidx, seq_size, cname):
     TRAIN_y = TRAIN_y.reshape(-1)
     lengths_train = np.ones(int(TRAIN_X.shape[0]/seq_size), dtype=np.uint8)*seq_size
 
-    if cname == "sperc":
+    if cname == "sperc_":
         clf = StructuredPerceptron(verbose=0, lr_exponent=1.0, max_iter=1000)
     if cname == "hmm":
         #clf = MultinomialHMM()
