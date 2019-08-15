@@ -8,7 +8,7 @@ from sklearn.preprocessing import normalize
 
 from jenkspy import jenks_breaks
 
-#import ipdb as pdb
+import ipdb as pdb
 
 
 def get_rank_feature(featalias, **ka):
@@ -47,6 +47,17 @@ def get_rank_feature(featalias, **ka):
 
     elif featalias == 'ktau_top':
         return rank_features_topk_correlation(ka['corr_mat'], ka['i'])
+
+    elif featalias == 'seq_bhatt':
+        #pdb.set_trace()
+        if ka['i'] == 0:
+            h = ka['query_idx']
+            i = ka['topk_idx'][ka['i']]
+        else:
+            h = ka['topk_idx'][ka['i']-1]
+            i = ka['topk_idx'][ka['i']]
+        return rank_features_seq_density_distance(ka['coll_scores'], h, i, ka['bins'], ka['norm'])
+
 
     else:
         raise ValueError("<{0:s}> is not a valid feature alias. ".format(featalias))
@@ -334,3 +345,16 @@ def rank_features_topk_correlation(corrmat, i):
     return corrmat[i]
 
 
+def rank_features_seq_density_distance(collscores, hidx, iidx, n_bins, norm=False):
+
+    from rankutils.statistical import Bhattacharyya_coefficients
+
+    hdens, hedges = np.histogram(collscores[hidx], bins=n_bins, density=True)
+    idens, iedges = np.histogram(collscores[iidx], bins=n_bins, density=True)
+
+    fv = Bhattacharyya_coefficients(hdens, hedges, idens, iedges)
+
+    if norm:
+        return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
+    else:
+        return fv

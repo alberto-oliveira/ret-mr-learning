@@ -88,6 +88,7 @@ class Extractor:
         self.__namelist = None
         self.__distfitparams = None
         self.__collmatches = None
+        self.__collscores = None
 
         self.__dkey = collecionargs['dkey']
 
@@ -111,7 +112,6 @@ class Extractor:
         self.__fit_check = False
         self.__contextual_check = False
         self.__correlation_check = False
-
         self.__feature_queue = []
         self.__fv_dim = 0
 
@@ -167,9 +167,20 @@ class Extractor:
                     self.__correlation_check = True
                     self.__fv_dim += self.__topk
 
+                if featalias == 'seq_bhatt':
+                    self.__contextual_check = True
+                    self.__fv_dim += self.__bins_approx
+
         if 'collmatches_fpath' in collecionargs and self.__contextual_check:
             try:
                 self.__collmatches = np.load(collecionargs['collmatches_fpath'])[:, 0:self.__contextual_k]
+            except OSError:
+                warnings.warn("Collection matching indices file not found. Trying to run descriptors that use it will"
+                              " result in a crash", RuntimeWarning)
+
+        if 'collscores_fpath' in collecionargs and self.__contextual_check:
+            try:
+                self.__collscores = np.load(collecionargs['collscores_fpath'])[:, 0:self.__contextual_k]
             except OSError:
                 warnings.warn("Collection matching indices file not found. Trying to run descriptors that use it will"
                               " result in a crash", RuntimeWarning)
@@ -212,7 +223,18 @@ class Extractor:
             try:
                 self.__collmatches = np.load(collmfpath)
             except OSError:
-                warnings.warn("Distribution parameter file not found. Trying to run density-dependant extractors"
+                warnings.warn("Collection matches file not found. Trying to run density-dependant extractors"
+                              "will result in a crash", RuntimeWarning)
+
+        return
+
+    def update_collection_matches(self, collsfpath):
+
+        if self.__contextual_check:
+            try:
+                self.__collscores = np.load(collsfpath)
+            except OSError:
+                warnings.warn("Collection scores file not found. Trying to run density-dependant extractors"
                               "will result in a crash", RuntimeWarning)
 
         return
@@ -243,7 +265,9 @@ class Extractor:
                        distmat=None,
                        q_density=None,
                        q_edges=None,
-                       coll_matches=self.__collmatches)
+                       bins=self.__bins_approx,
+                       coll_matches=self.__collmatches,
+                       coll_scores=self.__collscores)
 
         total_samples = len(rkflist)
 

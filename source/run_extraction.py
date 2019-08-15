@@ -51,11 +51,17 @@ def run_extraction(dataset_choices, expconfig, rootpath):
             except (IndexError, KeyError):
                 collmfpath = ''
 
+            try:
+                collsfpath = glob.glob(pathcfg[dkey]["collmatches"] + "*" + rktpname + "*db_scores*")[0]
+            except (IndexError, KeyError):
+                collsfpath = ''
+
             safe_create_dir(pathcfg[dkey]["feature"])
 
             collectionargs = dict(namelist_fpath=pathcfg[dkey]['namelist'],
                                   ditribution_fdir=pathcfg[dkey]['distribution'],
                                   collmatches_fpath=collmfpath,
+                                  collscores_fpath=collsfpath,
                                   dkey=dkey)
 
             extr = Extractor(expcfg, **collectionargs)
