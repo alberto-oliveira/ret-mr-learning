@@ -6,6 +6,9 @@ import scipy.fftpack as fft
 
 from sklearn.preprocessing import normalize
 
+from scipy.stats import wasserstein_distance as emd
+from scipy.stats import kendalltau
+
 from jenkspy import jenks_breaks
 
 def get_rank_feature(featalias, **ka):
@@ -46,7 +49,6 @@ def get_rank_feature(featalias, **ka):
         return rank_features_topk_correlation(ka['corr_mat'], ka['i'])
 
     elif featalias == 'seq_bhatt':
-        #pdb.set_trace()
         if ka['i'] == 0:
             h = ka['query_idx']
             i = ka['topk_idx'][ka['i']]
@@ -54,6 +56,24 @@ def get_rank_feature(featalias, **ka):
             h = ka['topk_idx'][ka['i']-1]
             i = ka['topk_idx'][ka['i']]
         return rank_features_seq_density_distance(ka['coll_scores'], h, i, ka['bins'], ka['norm'])
+
+    elif featalias == 'seq_emd':
+        if ka['i'] == 0:
+            h = ka['query_idx']
+            i = ka['topk_idx'][ka['i']]
+        else:
+            h = ka['topk_idx'][ka['i']-1]
+            i = ka['topk_idx'][ka['i']]
+        return rank_features_seq_emd(ka['coll_scores'], h, i)
+
+    elif featalias == 'seq_ktau':
+        if ka['i'] == 0:
+            h = ka['query_idx']
+            i = ka['topk_idx'][ka['i']]
+        else:
+            h = ka['topk_idx'][ka['i']-1]
+            i = ka['topk_idx'][ka['i']]
+        return rank_features_seq_ktau(ka['coll_matches'], h, i)
 
 
     else:
@@ -362,3 +382,25 @@ def rank_features_seq_density_distance(collscores, hidx, iidx, n_bins, norm=Fals
         return normalize(fv.reshape(1, -1), norm='l2').reshape(-1)
     else:
         return fv
+
+
+def rank_features_seq_emd(collscores, hidx, iidx):
+
+    return emd(collscores[hidx], collscores[iidx])
+
+
+def rank_features_seq_ktau(collmatches, hidx, iidx):
+
+    hmatches = collmatches[hidx]
+    imatches = collmatches[iidx]
+
+    ml = np.max([hmatches.max(), imatches.max()])
+
+    w = np.arange(hmatches.size, 0, -1)
+
+    bc_h = np.bincount(hmatches, weights=w, minlength=ml+1)
+    bc_i = np.bincount(imatches, weights=w, minlength=ml+1)
+
+    tau, _ = kendalltau(bc_h, bc_i)
+
+    return tau

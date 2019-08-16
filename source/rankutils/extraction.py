@@ -171,6 +171,14 @@ class Extractor:
                     self.__contextual_check = True
                     self.__fv_dim += self.__bins_approx
 
+                if featalias == 'seq_ktau':
+                    self.__contextual_check = True
+                    self.__fv_dim += 1
+
+                if featalias == 'seq_emd':
+                    self.__contextual_check = True
+                    self.__fv_dim += 1
+
         if 'collmatches_fpath' in collecionargs and self.__contextual_check:
             try:
                 self.__collmatches = np.load(collecionargs['collmatches_fpath'])[:, 0:self.__contextual_k]
