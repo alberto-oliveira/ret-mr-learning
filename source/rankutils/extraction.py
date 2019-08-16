@@ -165,7 +165,7 @@ class Extractor:
                 if featalias == 'ktau_top':
                     self.__contextual_check = True
                     self.__correlation_check = True
-                    self.__fv_dim += self.__topk
+                    self.__fv_dim += self.__topk-1
 
                 if featalias == 'seq_bhatt':
                     self.__contextual_check = True

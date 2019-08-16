@@ -8,9 +8,6 @@ from sklearn.preprocessing import normalize
 
 from jenkspy import jenks_breaks
 
-import ipdb as pdb
-
-
 def get_rank_feature(featalias, **ka):
 
     if featalias == 'raw_scores':
@@ -249,8 +246,8 @@ def rank_features_density_distance_from_query(q_density, q_edges, r_densities, r
 
 def rank_features_interval_jaccard(collmatches, qidx, pidx, n, norm=False):
 
-    if not np.all(collmatches[pidx] != -1) or not np.all(collmatches[qidx] != -1):
-        pdb.set_trace()
+    #if not np.all(collmatches[pidx] != -1) or not np.all(collmatches[qidx] != -1):
+    #    pdb.set_trace()
 
     q_split = np.array_split(collmatches[qidx], n)
     p_split = np.array_split(collmatches[pidx], n)
@@ -342,7 +339,14 @@ def rank_features_cid_frequency_diff(collmatches, cid, qidx, i, norm=False):
 
 def rank_features_topk_correlation(corrmat, i):
 
-    return corrmat[i]
+    fv = np.zeros(corrmat.shape[1]-1, dtype=np.float32)
+    p = 0
+    for j in range(corrmat.shape[1]):
+        if j != i:
+            fv[p] = corrmat[i, j]
+            p += 1
+
+    return fv
 
 
 def rank_features_seq_density_distance(collscores, hidx, iidx, n_bins, norm=False):
