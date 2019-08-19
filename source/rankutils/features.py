@@ -73,7 +73,7 @@ def get_rank_feature(featalias, **ka):
         else:
             h = ka['topk_idx'][ka['i']-1]
             i = ka['topk_idx'][ka['i']]
-        return rank_features_seq_ktau(ka['coll_matches'], h, i)
+        return rank_features_seq_ktau(ka['coll_matches'], h, i, ka['ktau_k'])
 
 
     else:
@@ -386,13 +386,18 @@ def rank_features_seq_density_distance(collscores, hidx, iidx, n_bins, norm=Fals
 
 def rank_features_seq_emd(collscores, hidx, iidx):
 
-    return emd(collscores[hidx], collscores[iidx])
+    hscores = collscores[hidx]
+    iscores = collscores[iidx]
+
+    fv = emd(hscores, iscores)
+
+    return fv
 
 
-def rank_features_seq_ktau(collmatches, hidx, iidx):
+def rank_features_seq_ktau(collmatches, hidx, iidx, k):
 
-    hmatches = collmatches[hidx]
-    imatches = collmatches[iidx]
+    hmatches = collmatches[hidx, :k]
+    imatches = collmatches[iidx, :k]
 
     ml = np.max([hmatches.max(), imatches.max()])
 

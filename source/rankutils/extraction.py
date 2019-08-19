@@ -79,6 +79,7 @@ class Extractor:
         self.__abs_diff = cfg.getboolean('parameters', 'absolute_difference', fallback=False)
         self.__num_intv = cfg.getint('parameters', 'num_intervals', fallback=100)
         self.__contextual_k = cfg.getint('parameters', 'contextual_k', fallback=300)
+        self.__ktau_k = cfg.getint('parameters', 'ktau_k', fallback=20)
         self.__norm = cfg.getboolean('parameters', 'normalize', fallback=False)
         self.__nvar = cfg.getint('parameters', 'nvar', fallback=1)
         self.__varf = cfg.getfloat('parameters', 'varf', fallback=0.5)
@@ -264,6 +265,7 @@ class Extractor:
                        dct_range=self.__dct_range,
                        delta_range=self.__delta_range,
                        cluster_num=self.__cluster_num,
+                       ktau_k=self.__ktau_k,
                        abs=self.__abs_diff,
                        num_intv=self.__num_intv,
                        norm=self.__norm,
