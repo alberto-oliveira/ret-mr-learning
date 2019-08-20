@@ -351,7 +351,7 @@ def run_sequence_labeling(sequences, labels, foldidx, seq_size, cname):
     lengths_train = np.ones(int(TRAIN_X.shape[0]/seq_size), dtype=np.uint8)*seq_size
 
     if cname == "sperc_":
-        clf = StructuredPerceptron(verbose=0, lr_exponent=1.0, max_iter=1000)
+        clf = StructuredPerceptron(verbose=0, lr_exponent=1.0, max_iter=2000)
     if cname == "hmm":
         #clf = MultinomialHMM()
         raise TypeError("hmm unsupported")

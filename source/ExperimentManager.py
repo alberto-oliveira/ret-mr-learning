@@ -823,7 +823,7 @@ class ExperimentManager:
                 # and 1 is test first, train last
                 splits = np.zeros((rounds, n, k), dtype=np.uint8)
 
-                bseed=93
+                bseed=93311
                 print("bseed:", bseed)
                 rkfold = RepeatedKFold(n_splits=2, n_repeats=rounds, random_state=bseed)
                 splitgen = rkfold.split(sequences)
