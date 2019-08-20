@@ -15,7 +15,7 @@ from rankutils.mappings import ranking_type_map
 from rankutils.cfgloader import cfgloader
 from rankutils.utilities import safe_create_dir
 
-import ipdb as pdb
+#import ipdb as pdb
 
 ranks_to_convert = OrderedDict(places365=[1, 2],
                                vggfaces=[1, 2],
