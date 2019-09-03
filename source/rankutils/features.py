@@ -64,7 +64,7 @@ def get_rank_feature(featalias, **ka):
         else:
             h = ka['topk_idx'][ka['i']-1]
             i = ka['topk_idx'][ka['i']]
-        return rank_features_seq_emd(ka['coll_scores'], h, i)
+        return rank_features_seq_emd(ka['coll_scores'], ka['query_idx'], h, i)
 
     elif featalias == 'seq_ktau':
         if ka['i'] == 0:
@@ -74,6 +74,15 @@ def get_rank_feature(featalias, **ka):
             h = ka['topk_idx'][ka['i']-1]
             i = ka['topk_idx'][ka['i']]
         return rank_features_seq_ktau(ka['coll_matches'], h, i, ka['ktau_k'])
+
+    elif featalias == 'seq_jacc':
+        if ka['i'] == 0:
+            h = ka['query_idx']
+            i = ka['topk_idx'][ka['i']]
+        else:
+            h = ka['topk_idx'][ka['i']-1]
+            i = ka['topk_idx'][ka['i']]
+        return rank_features_seq_jaccard(ka['coll_matches'], ka['query_idx'], h, i, ka['ktau_k'])
 
 
     else:
@@ -384,12 +393,16 @@ def rank_features_seq_density_distance(collscores, hidx, iidx, n_bins, norm=Fals
         return fv
 
 
-def rank_features_seq_emd(collscores, hidx, iidx):
+def rank_features_seq_emd(collscores, qidx, hidx, iidx):
 
+    qscores = collscores[qidx]
     hscores = collscores[hidx]
     iscores = collscores[iidx]
 
-    fv = emd(hscores, iscores)
+    emd_q = emd(qscores, iscores)
+    emd_h = emd(hscores, iscores)
+
+    fv = np.array([emd_q, emd_h])
 
     return fv
 
@@ -409,3 +422,23 @@ def rank_features_seq_ktau(collmatches, hidx, iidx, k):
     tau, _ = kendalltau(bc_h, bc_i)
 
     return tau
+
+
+def rank_features_seq_jaccard(collmatches, qidx, hidx, iidx, k):
+
+    qmatches = collmatches[qidx, :k]
+    hmatches = collmatches[hidx, :k]
+    imatches = collmatches[iidx, :k]
+
+    intersection_q = np.intersect1d(qmatches, imatches)
+    union_q = np.union1d(qmatches, imatches)
+    jacc_q = intersection_q.size/union_q.size
+
+    intersection_h = np.intersect1d(hmatches, imatches)
+    union_h = np.union1d(hmatches, imatches)
+    jacc_h = intersection_h.size/union_h.size
+
+    fv = np.array([jacc_q, jacc_h])
+
+    return fv
+

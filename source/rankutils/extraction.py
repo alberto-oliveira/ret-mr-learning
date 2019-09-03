@@ -178,7 +178,11 @@ class Extractor:
 
                 if featalias == 'seq_emd':
                     self.__contextual_check = True
-                    self.__fv_dim += 1
+                    self.__fv_dim += 2
+
+                if featalias == 'seq_jacc':
+                    self.__contextual_check = True
+                    self.__fv_dim += 2
 
         if 'collmatches_fpath' in collecionargs and self.__contextual_check:
             try:

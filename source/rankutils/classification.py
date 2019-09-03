@@ -1,6 +1,7 @@
 #/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import sys
 import glob
 
 import numpy as np
@@ -331,12 +332,71 @@ def run_strc_classification(sequences, labels, foldidx, seq_size, cname, mname):
     return PRED_y, PRED_y
 
 
+def run_strc_classification_time(sequences, labels, foldidx, seq_size, cname, mname):
+
+    from pystruct.models import ChainCRF, MultiLabelClf
+    from pystruct.learners import NSlackSSVM, OneSlackSSVM, FrankWolfeSSVM, StructuredPerceptron
+    from time import time
+    import pandas
+
+    import ipdb as pdb
+
+    n, k, d = sequences.shape
+
+    train_idx, test_idx = foldidx
+    SCL = StandardScaler()
+
+    TRAIN_X = sequences[train_idx]
+    TRAIN_y = labels[train_idx]
+
+    TRAIN_X = SCL.fit_transform(TRAIN_X.reshape(-1, d))
+    TRAIN_X = TRAIN_X.reshape(-1, seq_size, d)
+
+    TRAIN_y = TRAIN_y.reshape(-1, seq_size)
+
+    if mname == 'crf':
+        model = ChainCRF(inference_method='ad3', directed=False)
+
+    if cname == '1slack':
+        sclf = OneSlackSSVM(model=model, C=1, max_iter=2000, verbose=0, n_jobs=5)
+    elif cname == 'nslack':
+        sclf = NSlackSSVM(model=model, max_iter=250, verbose=0)
+    elif cname == 'sperc':
+        sclf = StructuredPerceptron(model=model, max_iter=2000, n_jobs=5)
+
+    sclf.fit(TRAIN_X, TRAIN_y)
+
+    TEST_X = sequences[test_idx]
+    test_size = TEST_X.shape[0]
+    TEST_y = labels[train_idx]
+
+    TEST_X = SCL.transform(TEST_X.reshape(-1, d))
+    TEST_X = TEST_X.reshape(-1, seq_size, d)
+
+    df_data = dict(time=[])
+    #pdb.set_trace()
+    for i in range(TEST_X.shape[0]):
+        ts = time()
+        PRED_y = sclf.predict(TEST_X[i:i+1])
+        te = time()
+        df_data['time'].append(te - ts)
+        #PRED_y = np.array(PRED_y)
+        #PRED_y = PRED_y.reshape(test_size, k)
+
+    df = pandas.DataFrame(df_data)
+    df.to_csv('1slack_timing_vggfaces.csv')
+
+    sys.exit()
+
+    return PRED_y, PRED_y
+
+
 def run_sequence_labeling(sequences, labels, foldidx, seq_size, cname):
 
     from seqlearn.perceptron import StructuredPerceptron
     #from seqlearn.hmm import MultinomialHMM
 
-    #import ipdb as pdb
+    import ipdb as pdb
 
     n, k, d = sequences.shape
 
@@ -365,6 +425,53 @@ def run_sequence_labeling(sequences, labels, foldidx, seq_size, cname):
     PRED_y = clf.predict(TEST_X, lengths=lengths_test)
 
     PRED_y = PRED_y.reshape(test_idx.size, k)
+
+    return PRED_y, PRED_y
+
+
+def run_sequence_labeling_time(sequences, labels, foldidx, seq_size, cname, dataset):
+
+    from seqlearn.perceptron import StructuredPerceptron
+    from time import time
+    import pandas
+
+    import ipdb as pdb
+
+    n, k, d = sequences.shape
+
+    train_idx, test_idx = foldidx
+    SCL = StandardScaler()
+
+    TRAIN_X = sequences[train_idx]
+    TRAIN_y = labels[train_idx]
+
+    TRAIN_X = SCL.fit_transform(TRAIN_X.reshape(-1, d))
+    TRAIN_y = TRAIN_y.reshape(-1)
+    lengths_train = np.ones(int(TRAIN_X.shape[0]/seq_size), dtype=np.uint8)*seq_size
+
+    if cname == "sperc_2":
+        clf = StructuredPerceptron(verbose=0, lr_exponent=1.0, max_iter=500)
+    if cname == "hmm":
+        #clf = MultinomialHMM()
+        raise TypeError("hmm unsupported")
+    clf.fit(TRAIN_X, TRAIN_y, lengths_train)
+
+    TEST_X = sequences[test_idx]
+
+    TEST_X = SCL.transform(TEST_X.reshape(-1, d))
+    lengths_test = np.ones(int(TEST_X.shape[0]/seq_size), dtype=np.uint8)*seq_size
+
+    df_data = dict(time=[])
+    for i in range(lengths_test.shape[0]):
+        ts = time()
+        PRED_y = clf.predict(TEST_X[i*seq_size:(i+1)*seq_size], lengths=[seq_size])
+        te = time()
+        df_data['time'].append(te - ts)
+
+    df = pandas.DataFrame(df_data)
+    df.to_csv('sperc_timing_{0:s}.csv'.format(dataset))
+
+    sys.exit()
 
     return PRED_y, PRED_y
 

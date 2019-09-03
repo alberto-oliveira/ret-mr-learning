@@ -17,10 +17,12 @@ from rankutils.utilities import safe_create_dir
 
 #import ipdb as pdb
 
-ranks_to_convert = OrderedDict(places365=[1, 2],
+ranks_to_convert = OrderedDict(oxford=[1, 2, 3, 4, 5],
+                               corel=[1, 2],
+                               places365=[1, 2, 3],
                                vggfaces=[1, 2],
-                               imagenet=[1, 3],
-                               unicamp=[1, 2, 4])#,
+                               imagenet=[1, 2, 3],
+                               unicamp=[1, 2, 3, 4, 5])#,
                                #MPEG7=[1, 2, 3, 4, 5],
                                #multimodal=[3, 4, 6, 10, 12])
 
@@ -60,7 +62,12 @@ if __name__ == "__main__":
 
             #pdb.set_trace()
 
-            in_fvpath = glob.glob("{0:s}*{1:s}*".format(in_fvdir, fvname))[0]
+            try:
+                in_fvpath = glob.glob("{0:s}*{1:s}*".format(in_fvdir, fvname))[0]
+            except IndexError as ie:
+                print("Not found. Skipping")
+                continue
+
             out_sfvpath = "{0:s}{1:s}".format(out_sfvdir, get_output_name(os.path.basename(in_fvpath)))
 
             print("   ->", in_fvpath)
