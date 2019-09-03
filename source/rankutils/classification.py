@@ -307,7 +307,7 @@ def run_strc_classification(sequences, labels, foldidx, seq_size, cname, mname):
         model = ChainCRF(inference_method='ad3', directed=False)
 
     if cname == '1slack':
-        sclf = OneSlackSSVM(model=model, C=1, max_iter=2000, verbose=0, n_jobs=5)
+        sclf = OneSlackSSVM(model=model, C=1, max_iter=2000, verbose=0, n_jobs=3)
     elif cname == 'nslack':
         sclf = NSlackSSVM(model=model, max_iter=250, verbose=0)
     elif cname == 'sperc':
