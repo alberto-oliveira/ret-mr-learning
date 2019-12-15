@@ -8,6 +8,12 @@ import argparse
 
 from rankutils.cfgloader import cfgloader
 
+def TEST(pathlist):
+
+    for path in pathlist:
+	print(path)
+	
+	return
 
 def run_cleaning(expcfgfile, newname):
 
